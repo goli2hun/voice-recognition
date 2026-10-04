@@ -32,7 +32,8 @@ Configurable values currently include:
 - microphone auto-selection preference rules,
 - saved microphone storage key,
 - volume-meter FFT size, dB floor and signal thresholds,
-- all command IDs, labels and aliases.
+- all command IDs, labels and aliases,
+- Hungarian letter patterns, spoken forms, connector words and code words.
 
 For example, Szerencsekerék command phrases can be added directly under `commands` in `config/config.js`.
 
@@ -101,7 +102,8 @@ The page contains:
 - live interim transcript,
 - accumulated final transcript,
 - highlighted configured keywords,
-- last detected command.
+- last detected command,
+- last detected Hungarian letter pattern.
 
 Initial command groups:
 
@@ -111,6 +113,23 @@ Initial command groups:
 | `SOLVE` | megfejtés, megfejtem, megfejteni, megoldás |
 | `VOWEL` | magánhangzó, magánhangzót |
 | `GAME` | játék |
+
+### Hungarian letter parser
+
+Letter recognition is intentionally separate from normal commands. It is configured under `letters` in `config/config.js`.
+
+Examples:
+
+```text
+K mint Károly  -> K
+ká mint Károly -> K
+B mint Béla    -> B
+SZ mint Szabolcs -> SZ
+```
+
+The parser keeps Hungarian accents while matching letters, so `A` and `Á`, `O` and `Ó`, etc. remain distinct. By default, a code word such as `Károly` on its own does **not** trigger a letter; the explicit `<letter> mint <code word>` structure is required to reduce false positives.
+
+The configured entries cover the Hungarian alphabet, including digraphs/trigraphs such as `CS`, `GY`, `LY`, `NY`, `SZ`, `TY`, `ZS` and `DZS`.
 
 Matching is case-insensitive and accent-tolerant for command detection.
 
@@ -129,7 +148,6 @@ Whisper should only be added if the browser recognizer is not accurate, predicta
 
 1. Run a 20–30 phrase Hungarian command benchmark.
 2. Record command-level success/failure, not only transcript quality.
-3. Add Hungarian letter patterns such as “K mint Károly”.
-4. Add fuzzy matching only where real recognition errors justify it.
-5. Compare with Whisper if browser recognition is insufficient.
-6. Extract the recognizer/command matcher into a reusable module for Szerencsekerék.
+3. Add fuzzy matching only where real recognition errors justify it.
+4. Compare with Whisper if browser recognition is insufficient.
+5. Extract the recognizer/command matcher into a reusable module for Szerencsekerék.

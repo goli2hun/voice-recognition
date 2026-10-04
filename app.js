@@ -9,6 +9,7 @@ if (!CONFIG) {
 
 const MIC_STORAGE_KEY = CONFIG.storage.microphoneDeviceIdKey;
 const COMMANDS = CONFIG.commands;
+const LETTER_CONFIG = CONFIG.letters;
 
 const startBtn = document.querySelector("#startBtn");
 const stopBtn = document.querySelector("#stopBtn");
@@ -29,6 +30,8 @@ const finalTranscriptElement = document.querySelector("#finalTranscript");
 const keywordList = document.querySelector("#keywordList");
 const commandValue = document.querySelector("#commandValue");
 const commandSource = document.querySelector("#commandSource");
+const letterValue = document.querySelector("#letterValue");
+const letterSource = document.querySelector("#letterSource");
 
 const aliases = [...new Set(COMMANDS.flatMap((command) => command.aliases))]
   .sort((a, b) => b.length - a.length);
@@ -69,6 +72,61 @@ function normalizeText(value) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase("hu-HU");
+}
+
+function normalizeLetterText(value) {
+  return value
+    .normalize("NFC")
+    .toLocaleLowerCase("hu-HU")
+    .replace(/[^\\p{L}\\p{N}]+/gu, " ")
+    .replace(/\\s+/g, " ")
+    .trim();
+}
+
+function detectLetter(value) {
+  if (!LETTER_CONFIG?.enabled) {
+    return null;
+  }
+
+  const normalizedText = normalizeLetterText(value);
+  const paddedText = ` ${normalizedText} `;
+
+  for (const entry of LETTER_CONFIG.entries) {
+    const spokenForms = entry.spoken ?? [];
+    const codeWords = entry.codeWords ?? [];
+
+    for (const spoken of spokenForms) {
+      for (const connector of LETTER_CONFIG.connectors ?? ["mint"]) {
+        for (const codeWord of codeWords) {
+          const phrase = normalizeLetterText(
+            `${spoken} ${connector} ${codeWord}`,
+          );
+
+          if (paddedText.includes(` ${phrase} `)) {
+            return {
+              value: entry.value,
+              matchedPhrase: phrase,
+            };
+          }
+        }
+      }
+    }
+
+    if (LETTER_CONFIG.allowCodeWordOnly) {
+      for (const codeWord of codeWords) {
+        const normalizedCodeWord = normalizeLetterText(codeWord);
+
+        if (paddedText.includes(` ${normalizedCodeWord} `)) {
+          return {
+            value: entry.value,
+            matchedPhrase: normalizedCodeWord,
+          };
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 function highlightKeywords(value, placeholder) {
@@ -144,6 +202,15 @@ function renderDetectedCommand(command, sourceText) {
 
   commandValue.textContent = `${command.id} · ${command.label}`;
   commandSource.textContent = `„${sourceText.trim()}”`;
+}
+
+function renderDetectedLetter(letter, sourceText) {
+  if (!letter) {
+    return;
+  }
+
+  letterValue.textContent = letter.value;
+  letterSource.textContent = `„${sourceText.trim()}”`;
 }
 
 function getSavedMicrophoneId() {
@@ -451,6 +518,9 @@ function clearOutput() {
 
   commandValue.textContent = "—";
   commandSource.textContent = "Még nincs találat.";
+
+  letterValue.textContent = "—";
+  letterSource.textContent = "Mondd például: „K mint Károly”.";
 }
 
 function handleMicrophoneFailure(error) {
@@ -602,6 +672,11 @@ function configureRecognition() {
     const detected = detectCommand(changedText);
     if (detected) {
       renderDetectedCommand(detected, changedText);
+    }
+
+    const detectedLetter = detectLetter(changedText);
+    if (detectedLetter) {
+      renderDetectedLetter(detectedLetter, changedText);
     }
   };
 

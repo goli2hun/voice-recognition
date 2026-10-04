@@ -42,6 +42,64 @@ window.VOICE_RECOGNITION_CONFIG = {
     releaseSmoothing: 0.84,
   },
 
+
+  letters: {
+    enabled: true,
+
+    // The parser expects phrases such as "K mint Károly".
+    // Code-word-only matching is off by default to avoid false positives
+    // when a normal sentence happens to contain a person's name.
+    connectors: ["mint"],
+    allowCodeWordOnly: false,
+
+    entries: [
+      { value: "A", spoken: ["a"], codeWords: ["aladár", "anna"] },
+      { value: "Á", spoken: ["á"], codeWords: ["ádám"] },
+      { value: "B", spoken: ["b", "bé"], codeWords: ["béla"] },
+      { value: "C", spoken: ["c", "cé"], codeWords: ["cecil"] },
+      { value: "CS", spoken: ["cs"], codeWords: ["csaba"] },
+      { value: "D", spoken: ["d", "dé"], codeWords: ["dénes"] },
+      { value: "DZ", spoken: ["dz"], codeWords: ["dzéta"] },
+      { value: "DZS", spoken: ["dzs"], codeWords: ["dzsungel"] },
+      { value: "E", spoken: ["e"], codeWords: ["elemér"] },
+      { value: "É", spoken: ["é"], codeWords: ["éva"] },
+      { value: "F", spoken: ["f", "ef"], codeWords: ["ferenc"] },
+      { value: "G", spoken: ["g", "gé"], codeWords: ["géza"] },
+      { value: "GY", spoken: ["gy"], codeWords: ["gyula"] },
+      { value: "H", spoken: ["h", "há"], codeWords: ["henrik"] },
+      { value: "I", spoken: ["i"], codeWords: ["ilona"] },
+      { value: "Í", spoken: ["í"], codeWords: ["írisz"] },
+      { value: "J", spoken: ["j", "jé"], codeWords: ["jános"] },
+      { value: "K", spoken: ["k", "ká"], codeWords: ["károly", "krisz", "kutya"] },
+      { value: "L", spoken: ["l", "el"], codeWords: ["lászló"] },
+      { value: "LY", spoken: ["ly"], codeWords: ["lyuk"] },
+      { value: "M", spoken: ["m", "em"], codeWords: ["mihály"] },
+      { value: "N", spoken: ["n", "en"], codeWords: ["nándor"] },
+      { value: "NY", spoken: ["ny"], codeWords: ["nyár"] },
+      { value: "O", spoken: ["o"], codeWords: ["olga"] },
+      { value: "Ó", spoken: ["ó"], codeWords: ["óbuda"] },
+      { value: "Ö", spoken: ["ö"], codeWords: ["ödön"] },
+      { value: "Ő", spoken: ["ő"], codeWords: ["őrs"] },
+      { value: "P", spoken: ["p", "pé"], codeWords: ["péter"] },
+      { value: "Q", spoken: ["q", "kú"], codeWords: ["quebec"] },
+      { value: "R", spoken: ["r", "er"], codeWords: ["róbert"] },
+      { value: "S", spoken: ["s", "es"], codeWords: ["sándor"] },
+      { value: "SZ", spoken: ["sz"], codeWords: ["szabolcs", "szilva"] },
+      { value: "T", spoken: ["t", "té"], codeWords: ["tamás"] },
+      { value: "TY", spoken: ["ty"], codeWords: ["tyúk"] },
+      { value: "U", spoken: ["u"], codeWords: ["ubul"] },
+      { value: "Ú", spoken: ["ú"], codeWords: ["újpest"] },
+      { value: "Ü", spoken: ["ü"], codeWords: ["üllő"] },
+      { value: "Ű", spoken: ["ű"], codeWords: ["űr"] },
+      { value: "V", spoken: ["v", "vé"], codeWords: ["viktor"] },
+      { value: "W", spoken: ["w", "dupla vé"], codeWords: ["watt"] },
+      { value: "X", spoken: ["x", "iksz"], codeWords: ["xilofon"] },
+      { value: "Y", spoken: ["y", "ipszilon"], codeWords: ["ybl"] },
+      { value: "Z", spoken: ["z", "zé"], codeWords: ["zoltán"] },
+      { value: "ZS", spoken: ["zs"], codeWords: ["zsuzsa", "zsiráf"] },
+    ],
+  },
+
   commands: [
     {
       id: "SPIN",

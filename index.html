@@ -115,15 +115,28 @@
       </article>
     </section>
 
-    <section class="command-card" aria-labelledby="command-title">
-      <div>
-        <p class="eyebrow">Command matcher</p>
-        <h2 id="command-title">Utolsó felismert parancs</h2>
-      </div>
-      <div class="command-result">
-        <strong id="commandValue">—</strong>
-        <span id="commandSource" class="muted">Még nincs találat.</span>
-      </div>
+    <section class="result-grid" aria-label="Értelmezett beszéd eredmények">
+      <article class="command-card" aria-labelledby="command-title">
+        <div>
+          <p class="eyebrow">Command matcher</p>
+          <h2 id="command-title">Utolsó felismert parancs</h2>
+        </div>
+        <div class="command-result">
+          <strong id="commandValue">—</strong>
+          <span id="commandSource" class="muted">Még nincs találat.</span>
+        </div>
+      </article>
+
+      <article class="letter-card" aria-labelledby="letter-title">
+        <div>
+          <p class="eyebrow">Letter parser</p>
+          <h2 id="letter-title">Felismert betű</h2>
+        </div>
+        <div class="letter-result">
+          <strong id="letterValue">—</strong>
+          <span id="letterSource" class="muted">Mondd például: „K mint Károly”.</span>
+        </div>
+      </article>
     </section>
 
     <footer>
