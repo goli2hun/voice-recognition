@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Minimal Hungarian browser speech-recognition experiment for Szerencsekerék.">
+  <title>Voice Recognition</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="hero">
+      <p class="eyebrow">Szerencsekerék · micro pet project</p>
+      <h1>Voice Recognition</h1>
+      <p class="lead">Beszélj magyarul. A böngésző leírja, amit hall, a fontos kifejezéseket pedig kiemeli.</p>
+    </header>
+
+    <section class="control-card" aria-labelledby="controls-title">
+      <div class="status-row">
+        <div>
+          <h2 id="controls-title">Mikrofon</h2>
+          <p id="supportText" class="muted">A böngésző támogatásának ellenőrzése…</p>
+        </div>
+        <div id="statusBadge" class="status-badge" data-state="idle" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="statusText">Készen áll</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="startBtn" class="button button-primary" type="button">🎤 Beszéd indítása</button>
+        <button id="stopBtn" class="button" type="button" disabled>■ Leállítás</button>
+        <button id="clearBtn" class="button button-ghost" type="button">Törlés</button>
+      </div>
+    </section>
+
+    <section class="keyword-card" aria-labelledby="keywords-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="keywords-title">Figyelt kifejezések</h2>
+          <p class="muted">Ezekből már egyszerű játékparancsot is képezünk.</p>
+        </div>
+      </div>
+      <div id="keywordList" class="keyword-list"></div>
+    </section>
+
+    <section class="transcript-grid" aria-label="Beszédfelismerés eredménye">
+      <article class="transcript-card transcript-live">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Élő</p>
+            <h2>Felismerés alatt</h2>
+          </div>
+        </div>
+        <div id="interimTranscript" class="transcript" aria-live="polite">
+          <span class="placeholder">Indítsd el a mikrofont, majd beszélj…</span>
+        </div>
+      </article>
+
+      <article class="transcript-card">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Végleges</p>
+            <h2>Felismert szöveg</h2>
+          </div>
+        </div>
+        <div id="finalTranscript" class="transcript" aria-live="polite">
+          <span class="placeholder">A véglegesített szöveg itt gyűlik majd.</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="command-card" aria-labelledby="command-title">
+      <div>
+        <p class="eyebrow">Command matcher</p>
+        <h2 id="command-title">Utolsó felismert parancs</h2>
+      </div>
+      <div class="command-result">
+        <strong id="commandValue">—</strong>
+        <span id="commandSource" class="muted">Még nincs találat.</span>
+      </div>
+    </section>
+
+    <footer>
+      <p>HTML + CSS + vanilla JavaScript · backend nélkül</p>
+    </footer>
+  </main>
+
+  <noscript>Ehhez a demóhoz JavaScript szükséges.</noscript>
+</body>
+</html>

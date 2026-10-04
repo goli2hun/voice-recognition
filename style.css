@@ -1,0 +1,291 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f5f7fb;
+  color: #182033;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(67, 97, 238, 0.10), transparent 28rem),
+    #f5f7fb;
+}
+
+button {
+  font: inherit;
+}
+
+.app-shell {
+  width: min(980px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 64px 0 32px;
+}
+
+.hero {
+  margin-bottom: 28px;
+}
+
+.hero h1 {
+  margin: 4px 0 10px;
+  font-size: clamp(2.3rem, 7vw, 4.8rem);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.lead {
+  max-width: 720px;
+  margin: 0;
+  color: #5f687c;
+  font-size: 1.08rem;
+  line-height: 1.7;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #556074;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.muted {
+  color: #717b8f;
+}
+
+.control-card,
+.keyword-card,
+.transcript-card,
+.command-card {
+  border: 1px solid #e0e5ef;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 40px rgba(27, 39, 66, 0.06);
+}
+
+.control-card,
+.keyword-card,
+.command-card {
+  padding: 22px;
+}
+
+.control-card,
+.keyword-card {
+  margin-bottom: 18px;
+}
+
+.status-row,
+.section-heading,
+.command-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.status-row p,
+.section-heading p {
+  margin: 5px 0 0;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: #eef1f6;
+  color: #5d6678;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-badge[data-state="listening"] {
+  background: #fff0f0;
+  color: #c92a2a;
+}
+
+.status-badge[data-state="starting"],
+.status-badge[data-state="restarting"] {
+  background: #fff8db;
+  color: #8a6d00;
+}
+
+.status-badge[data-state="error"] {
+  background: #fff0f0;
+  color: #b42318;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.button {
+  border: 1px solid #d8deea;
+  border-radius: 12px;
+  padding: 11px 15px;
+  background: #fff;
+  color: #20293b;
+  cursor: pointer;
+  font-weight: 750;
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 7px 18px rgba(27, 39, 66, 0.09);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.button-primary {
+  border-color: #243bdb;
+  background: #304ffe;
+  color: #fff;
+}
+
+.button-ghost {
+  background: transparent;
+}
+
+.keyword-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.keyword-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #dde3ee;
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: #f8f9fc;
+  color: #444f63;
+  font-size: 0.86rem;
+}
+
+.keyword-chip strong {
+  color: #283aee;
+  font-size: 0.72rem;
+}
+
+.transcript-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.transcript-card {
+  min-height: 250px;
+  padding: 22px;
+}
+
+.transcript-live {
+  border-color: #d6dcff;
+}
+
+.transcript {
+  min-height: 145px;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #e2e7f0;
+  border-radius: 14px;
+  background: #f8f9fc;
+  font-size: 1.05rem;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.transcript mark {
+  border-radius: 5px;
+  padding: 1px 4px;
+  background: #fff0a8;
+  color: #332900;
+  font-weight: 800;
+}
+
+.placeholder {
+  color: #98a0af;
+  font-style: italic;
+}
+
+.command-card {
+  margin-bottom: 18px;
+}
+
+.command-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  text-align: right;
+}
+
+.command-result strong {
+  color: #253be4;
+  font-size: 1.15rem;
+}
+
+footer {
+  padding: 8px 2px 0;
+  color: #8a93a4;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    width: min(100% - 22px, 980px);
+    padding-top: 32px;
+  }
+
+  .status-row,
+  .command-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .transcript-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .command-result {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .controls .button {
+    flex: 1 1 160px;
+  }
+}
