@@ -5,6 +5,8 @@ Minimal browser-based Hungarian speech recognition proof of concept for the **Sz
 The goal is deliberately small:
 
 - request microphone access from the browser,
+- enumerate and select the desired audio input,
+- remember the selected microphone,
 - show the active browser audio input,
 - display a live microphone volume meter,
 - transcribe Hungarian speech live,
@@ -19,7 +21,7 @@ The goal is deliberately small:
 - CSS
 - Vanilla JavaScript
 - Browser Web Speech API (`SpeechRecognition` / `webkitSpeechRecognition`)
-- Media Capture API (`getUserMedia`)
+- Media Capture API (`getUserMedia` + `enumerateDevices`)
 - Web Audio API (`AudioContext` + `AnalyserNode`)
 
 No backend, npm, database, WebSocket or API key is required for the MVP.
@@ -40,15 +42,21 @@ http://localhost:8000
 
 Chrome or Edge is recommended for the first tests. Allow microphone access when prompted.
 
-> Browser speech recognition support and behaviour vary by browser. The first MVP intentionally targets Chromium-based browsers so we can measure whether the built-in recognizer is accurate enough before adding Whisper.
+## Microphone selection and diagnostics
 
-## Microphone diagnostics
+The microphone panel contains an input selector and a refresh button.
 
-Press **Beszéd indítása**. Before speech recognition starts, the page explicitly opens the browser's default audio input with `getUserMedia()`.
+On first use the browser may hide device names until microphone permission is granted. Press the refresh button or start speech recognition, allow microphone access, and the selector will be populated with the available audio inputs.
 
-The diagnostics panel then shows:
+The selection is stored in local storage and reused on the next visit. Loopback-style inputs such as **Stereo Mix / Sztereó keverő** are deliberately ranked below real microphones when the app has to make an automatic first choice.
 
-- the opened microphone/device name,
+The diagnostics stream is opened with an exact `deviceId` constraint, so the volume meter always measures the microphone selected in the dropdown.
+
+When supported by the browser, the same live audio track is also supplied to `SpeechRecognition.start(audioTrack)`. Older Web Speech implementations may ignore or not support explicit audio-track input and can still fall back to the browser/system speech-recognition input.
+
+The diagnostics panel shows:
+
+- selected and active microphone/device name,
 - sample rate when exposed by the browser,
 - channel count when exposed by the browser,
 - a continuously updating input-level meter,
@@ -60,12 +68,11 @@ This lets us separate two failures:
 - **the meter does not move** → microphone, permission, selected input or OS/browser audio problem,
 - **the meter moves but there is no transcript** → microphone capture works, so the likely issue is the browser SpeechRecognition service/path.
 
-Important: the Web Speech API does not expose a MediaStream input selector. The displayed device is the default audio input explicitly opened by the page for diagnostics; SpeechRecognition manages its own audio input internally.
-
 ## MVP behaviour
 
 The page contains:
 
+- microphone selector,
 - **Start listening** / **Stop** controls,
 - listening status,
 - active microphone information,

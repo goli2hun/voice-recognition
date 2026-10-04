@@ -30,9 +30,19 @@
 
       <div class="microphone-diagnostics" aria-label="Mikrofon diagnosztika">
         <div class="device-panel">
-          <p class="diagnostic-label">Aktív audio input</p>
-          <strong id="deviceName">Még nincs megnyitva</strong>
-          <span id="deviceDetails" class="muted">Az eszköz neve mikrofonengedély után jelenik meg.</span>
+          <label class="diagnostic-label" for="microphoneSelect">Mikrofon választás</label>
+          <div class="device-picker">
+            <select id="microphoneSelect" class="device-select" disabled>
+              <option>Eszközök betöltése…</option>
+            </select>
+            <button id="refreshMicBtn" class="icon-button" type="button" title="Mikrofonok frissítése" aria-label="Mikrofonok frissítése">↻</button>
+          </div>
+
+          <div class="active-device">
+            <p class="diagnostic-label">Aktív audio input</p>
+            <strong id="deviceName">Még nincs megnyitva</strong>
+            <span id="deviceDetails" class="muted">Az eszköz neve mikrofonengedély után jelenik meg.</span>
+          </div>
         </div>
 
         <div class="meter-panel">

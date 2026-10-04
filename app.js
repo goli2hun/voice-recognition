@@ -1,6 +1,8 @@
 const SpeechRecognition =
   window.SpeechRecognition || window.webkitSpeechRecognition;
 
+const MIC_STORAGE_KEY = "voice-recognition.microphone-device-id";
+
 const COMMANDS = [
   {
     id: "SPIN",
@@ -27,6 +29,8 @@ const COMMANDS = [
 const startBtn = document.querySelector("#startBtn");
 const stopBtn = document.querySelector("#stopBtn");
 const clearBtn = document.querySelector("#clearBtn");
+const refreshMicBtn = document.querySelector("#refreshMicBtn");
+const microphoneSelect = document.querySelector("#microphoneSelect");
 const supportText = document.querySelector("#supportText");
 const statusBadge = document.querySelector("#statusBadge");
 const statusText = document.querySelector("#statusText");
@@ -53,6 +57,7 @@ const highlightPattern = new RegExp(
 let recognition = null;
 let shouldListen = false;
 let finalTranscript = "";
+let audioInputs = [];
 
 let microphoneStream = null;
 let audioContext = null;
@@ -126,8 +131,14 @@ function setStatus(state, text) {
 }
 
 function setListeningControls(isListening) {
-  startBtn.disabled = isListening || !SpeechRecognition || !navigator.mediaDevices?.getUserMedia;
+  startBtn.disabled =
+    isListening ||
+    !SpeechRecognition ||
+    !navigator.mediaDevices?.getUserMedia;
+
   stopBtn.disabled = !isListening;
+  microphoneSelect.disabled = isListening || audioInputs.length === 0;
+  refreshMicBtn.disabled = isListening;
 }
 
 function renderTranscripts(interim = "") {
@@ -151,20 +162,151 @@ function renderDetectedCommand(command, sourceText) {
   commandSource.textContent = `„${sourceText.trim()}”`;
 }
 
+function getSavedMicrophoneId() {
+  try {
+    return window.localStorage.getItem(MIC_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveMicrophoneId(deviceId) {
+  try {
+    window.localStorage.setItem(MIC_STORAGE_KEY, deviceId);
+  } catch {
+    // localStorage can be unavailable in strict privacy modes.
+  }
+}
+
+function microphonePreferenceScore(device) {
+  const label = normalizeText(device.label || "");
+
+  let score = 0;
+
+  if (label.includes("mikrofon") || label.includes("microphone") || label.includes(" mic")) {
+    score += 30;
+  }
+
+  if (label.includes("webcam") || label.includes("c270")) {
+    score += 20;
+  }
+
+  if (label.includes("logi") || label.includes("logitech")) {
+    score += 10;
+  }
+
+  if (
+    label.includes("sztereo kevero") ||
+    label.includes("stereo mix") ||
+    label.includes("what u hear") ||
+    label.includes("loopback")
+  ) {
+    score -= 100;
+  }
+
+  if (device.deviceId === "default") {
+    score -= 2;
+  }
+
+  return score;
+}
+
+function choosePreferredMicrophone(devices) {
+  const savedId = getSavedMicrophoneId();
+
+  if (savedId && devices.some((device) => device.deviceId === savedId)) {
+    return savedId;
+  }
+
+  return [...devices]
+    .sort((a, b) => microphonePreferenceScore(b) - microphonePreferenceScore(a))[0]
+    ?.deviceId;
+}
+
+function renderSelectedDevicePreview() {
+  const selected = audioInputs.find(
+    (device) => device.deviceId === microphoneSelect.value,
+  );
+
+  if (!selected || microphoneStream) {
+    return;
+  }
+
+  deviceName.textContent = selected.label || "Kiválasztott mikrofon";
+  deviceDetails.textContent = "Kiválasztva · indításkor ezt az inputot nyitjuk meg.";
+}
+
+async function requestMicrophonePermission() {
+  const permissionStream = await navigator.mediaDevices.getUserMedia({
+    audio: true,
+    video: false,
+  });
+
+  for (const track of permissionStream.getTracks()) {
+    track.stop();
+  }
+}
+
+async function refreshMicrophoneList({
+  requestPermission = false,
+  preferBest = false,
+} = {}) {
+  if (requestPermission) {
+    await requestMicrophonePermission();
+  }
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  audioInputs = devices.filter((device) => device.kind === "audioinput");
+
+  const previousValue = microphoneSelect.value;
+  const preferredId = preferBest
+    ? choosePreferredMicrophone(audioInputs)
+    : getSavedMicrophoneId() || previousValue;
+
+  microphoneSelect.replaceChildren();
+
+  if (audioInputs.length === 0) {
+    const option = document.createElement("option");
+    option.textContent = "Nem található mikrofon";
+    option.value = "";
+    microphoneSelect.append(option);
+    microphoneSelect.disabled = true;
+    return;
+  }
+
+  audioInputs.forEach((device, index) => {
+    const option = document.createElement("option");
+    option.value = device.deviceId;
+    option.textContent = device.label || `Mikrofon ${index + 1}`;
+    microphoneSelect.append(option);
+  });
+
+  const selectedId =
+    audioInputs.some((device) => device.deviceId === preferredId)
+      ? preferredId
+      : choosePreferredMicrophone(audioInputs);
+
+  if (selectedId) {
+    microphoneSelect.value = selectedId;
+    saveMicrophoneId(selectedId);
+  }
+
+  microphoneSelect.disabled = false;
+  renderSelectedDevicePreview();
+}
+
 function renderDeviceInfo(track) {
   const settings = track.getSettings?.() ?? {};
   const details = [];
 
-  deviceName.textContent = track.label || "Alapértelmezett mikrofon";
+  deviceName.textContent = track.label || "Kiválasztott mikrofon";
 
   if (settings.sampleRate) {
     details.push(`${settings.sampleRate} Hz`);
   }
 
   if (settings.channelCount) {
-    details.push(
-      `${settings.channelCount} ${settings.channelCount === 1 ? "csatorna" : "csatorna"}`,
-    );
+    details.push(`${settings.channelCount} csatorna`);
   }
 
   deviceDetails.textContent =
@@ -224,12 +366,25 @@ async function startMicrophoneDiagnostics() {
     return;
   }
 
+  if (audioInputs.length === 0 || !microphoneSelect.value) {
+    await refreshMicrophoneList({
+      requestPermission: true,
+      preferBest: true,
+    });
+  }
+
+  const selectedDeviceId = microphoneSelect.value;
+
   signalText.textContent = "Mikrofon megnyitása…";
-  deviceName.textContent = "Engedélyre vár…";
-  deviceDetails.textContent = "A böngésző mikrofonengedélyt kérhet.";
+  deviceName.textContent = "Kapcsolódás…";
+  deviceDetails.textContent = "A kiválasztott audio input megnyitása.";
+
+  const audioConstraint = selectedDeviceId
+    ? { deviceId: { exact: selectedDeviceId } }
+    : true;
 
   microphoneStream = await navigator.mediaDevices.getUserMedia({
-    audio: true,
+    audio: audioConstraint,
     video: false,
   });
 
@@ -237,6 +392,18 @@ async function startMicrophoneDiagnostics() {
 
   if (!track) {
     throw new Error("No audio track is available.");
+  }
+
+  const actualDeviceId = track.getSettings?.().deviceId;
+  if (actualDeviceId) {
+    const matchingOption = audioInputs.find(
+      (device) => device.deviceId === actualDeviceId,
+    );
+
+    if (matchingOption) {
+      microphoneSelect.value = matchingOption.deviceId;
+      saveMicrophoneId(matchingOption.deviceId);
+    }
   }
 
   renderDeviceInfo(track);
@@ -331,16 +498,33 @@ function handleMicrophoneFailure(error) {
     return;
   }
 
-  if (error?.name === "NotFoundError") {
+  if (error?.name === "NotFoundError" || error?.name === "OverconstrainedError") {
     supportText.textContent =
-      "A böngésző nem talál használható mikrofont ezen az eszközön.";
-    deviceName.textContent = "Nem található mikrofon";
-    deviceDetails.textContent = "Ellenőrizd a Windows és a böngésző audio beállításait.";
+      "A kiválasztott mikrofont nem sikerült megnyitni. Frissítsd az eszközlistát és válassz másik inputot.";
+    deviceName.textContent = "A mikrofon nem érhető el";
+    deviceDetails.textContent = "Lehet, hogy az eszközt kihúzták vagy másik eszközazonosítót kapott.";
     return;
   }
 
   supportText.textContent =
     "Nem sikerült megnyitni a mikrofont. Ellenőrizd az eszközt és a böngésző engedélyeit.";
+}
+
+function startSpeechRecognition() {
+  const audioTrack = microphoneStream?.getAudioTracks()?.[0];
+
+  if (audioTrack?.readyState === "live") {
+    try {
+      recognition.start(audioTrack);
+      return;
+    } catch (error) {
+      if (error?.name !== "TypeError") {
+        throw error;
+      }
+    }
+  }
+
+  recognition.start();
 }
 
 function handleRecognitionStartFailure(error) {
@@ -378,7 +562,7 @@ async function startListening() {
   setStatus("starting", "Felismerés indítása…");
 
   try {
-    recognition.start();
+    startSpeechRecognition();
   } catch (error) {
     handleRecognitionStartFailure(error);
   }
@@ -420,7 +604,7 @@ function configureRecognition() {
     setListeningControls(true);
     setStatus("listening", "Hallgatózom");
     supportText.textContent =
-      "A mikrofon és a magyar beszédfelismerés is aktív (hu-HU).";
+      "A kiválasztott mikrofon és a magyar beszédfelismerés is aktív (hu-HU).";
     renderTranscripts();
   };
 
@@ -505,7 +689,7 @@ function configureRecognition() {
       }
 
       try {
-        recognition.start();
+        startSpeechRecognition();
       } catch (error) {
         handleRecognitionStartFailure(error);
       }
@@ -513,18 +697,43 @@ function configureRecognition() {
   };
 }
 
+async function handleRefreshMicrophones() {
+  refreshMicBtn.disabled = true;
+  supportText.textContent = "Mikrofonok lekérdezése…";
+
+  try {
+    await refreshMicrophoneList({
+      requestPermission: true,
+      preferBest: false,
+    });
+
+    supportText.textContent =
+      "Mikrofonlista frissítve. Válaszd ki a kívánt inputot.";
+  } catch (error) {
+    handleMicrophoneFailure(error);
+  } finally {
+    if (!shouldListen) {
+      refreshMicBtn.disabled = false;
+    }
+  }
+}
+
 renderKeywordList();
 renderTranscripts();
 renderMeter(0, -Infinity);
 
-const hasMicrophoneApi = Boolean(navigator.mediaDevices?.getUserMedia);
+const hasMicrophoneApi = Boolean(
+  navigator.mediaDevices?.getUserMedia &&
+  navigator.mediaDevices?.enumerateDevices,
+);
 
 if (!hasMicrophoneApi) {
   startBtn.disabled = true;
   stopBtn.disabled = true;
+  refreshMicBtn.disabled = true;
   setStatus("error", "Mikrofon API hiányzik");
   supportText.textContent =
-    "A getUserMedia API nem érhető el. Használj localhostot vagy HTTPS-t Chrome/Edge böngészőben.";
+    "A mikrofon API nem érhető el. Használj localhostot vagy HTTPS-t Chrome/Edge böngészőben.";
 } else if (!SpeechRecognition) {
   startBtn.disabled = true;
   stopBtn.disabled = true;
@@ -533,13 +742,33 @@ if (!hasMicrophoneApi) {
     "A mikrofon API elérhető, de ez a böngésző nem biztosít SpeechRecognition API-t. Próbáld Chrome vagy Edge böngészővel.";
 } else {
   supportText.textContent =
-    "Mikrofon és SpeechRecognition API elérhető. Első indításkor engedélyezd a mikrofont.";
+    "Mikrofon és SpeechRecognition API elérhető. Választhatsz inputot, majd indíthatod a felismerést.";
   configureRecognition();
+
+  refreshMicrophoneList({ requestPermission: false }).catch(() => {
+    microphoneSelect.disabled = true;
+  });
 }
+
+microphoneSelect.addEventListener("change", () => {
+  if (!microphoneSelect.value) {
+    return;
+  }
+
+  saveMicrophoneId(microphoneSelect.value);
+  renderSelectedDevicePreview();
+});
+
+navigator.mediaDevices?.addEventListener?.("devicechange", () => {
+  if (!shouldListen) {
+    refreshMicrophoneList({ requestPermission: false }).catch(() => {});
+  }
+});
 
 startBtn.addEventListener("click", startListening);
 stopBtn.addEventListener("click", stopListening);
 clearBtn.addEventListener("click", clearOutput);
+refreshMicBtn.addEventListener("click", handleRefreshMicrophones);
 
 window.addEventListener("beforeunload", () => {
   shouldListen = false;

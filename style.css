@@ -18,7 +18,8 @@ body {
     #f5f7fb;
 }
 
-button {
+button,
+select {
   font: inherit;
 }
 
@@ -139,7 +140,7 @@ h2 {
 
 .microphone-diagnostics {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.35fr);
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
   gap: 14px;
   margin-top: 20px;
 }
@@ -156,10 +157,55 @@ h2 {
 .device-panel {
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 
-.device-panel strong {
+.device-picker {
+  display: flex;
+  gap: 8px;
+}
+
+.device-select {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #d8deea;
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: #fff;
+  color: #20293b;
+}
+
+.device-select:disabled,
+.icon-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.icon-button {
+  flex: 0 0 auto;
+  width: 40px;
+  border: 1px solid #d8deea;
+  border-radius: 10px;
+  background: #fff;
+  color: #39465d;
+  cursor: pointer;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.icon-button:hover:not(:disabled) {
+  background: #eef2f8;
+}
+
+.active-device {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 18px;
+  padding-top: 15px;
+  border-top: 1px solid #e3e8f1;
+}
+
+.active-device strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
