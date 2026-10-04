@@ -124,12 +124,11 @@ Examples:
 K mint Károly  -> K
 ká mint Károly -> K
 B mint Béla    -> B
-SZ mint Szabolcs -> SZ
 ```
 
 The parser keeps Hungarian accents while matching letters, so `A` and `Á`, `O` and `Ó`, etc. remain distinct. By default, a code word such as `Károly` on its own does **not** trigger a letter; the explicit `<letter> mint <code word>` structure is required to reduce false positives.
 
-The configured entries cover the Hungarian alphabet, including digraphs/trigraphs such as `CS`, `GY`, `LY`, `NY`, `SZ`, `TY`, `ZS` and `DZS`.
+The configured entries intentionally use only single letter keys. Multi-character Hungarian letter names are handled as separate letters in the game (for example `S` then `Z`, not `SZ`).
 
 Matching is case-insensitive and accent-tolerant for command detection.
 
