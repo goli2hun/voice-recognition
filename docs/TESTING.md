@@ -1,10 +1,6 @@
 # Testing
 
-## Parser tests
-
-The project uses Node's built-in test runner and has no test dependency.
-
-Run:
+## Run
 
 ```bash
 node --test
@@ -18,20 +14,22 @@ npm test
 
 No `npm install` is required.
 
-## Covered cases
+## Current parser regression coverage
 
-- command alias inside a natural sentence
-- `K mint Károly` -> K
-- spoken `ká` form
-- accent distinction A vs Á
-- code-word-only false-positive prevention
-- multi-character Hungarian letter names are not one game letter
-- lower-ranked recognition alternative can still yield the right event
+Tests verify:
 
-## Why these tests matter
+- natural command aliases,
+- `B mint Balázs -> B`,
+- `Cé mint Cecil -> C`,
+- arbitrary text before the connector,
+- `min` as a recognition variant of `mint`,
+- accented initials such as Á and É,
+- configurable `Y mint ipszilon -> Y` exception,
+- configurable `Duplavé mint Walter -> W` exception,
+- no letter without a connector,
+- `SZ mint Szabolcs -> S` and `GY mint Gyula -> G`,
+- lower-ranked recognition alternatives.
 
-Real-world aliases will grow. The tests provide regression protection before moving the parser into KriszWheel.
+## Browser verification
 
-## Browser-only verification
-
-Node cannot test Web Speech or the microphone. Browser verification still covers permissions, selector, volume meter, recognition lifecycle, alternatives/confidence and the benchmark.
+Node tests cover pure parser logic. Browser testing still covers microphone permission, input selection, volume meter, SpeechRecognition lifecycle, confidence/alternatives and benchmark behaviour.

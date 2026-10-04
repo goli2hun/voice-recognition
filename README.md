@@ -9,7 +9,8 @@ Framework-free Hungarian speech-recognition laboratory for **KriszWheel / Szeren
 - browser SpeechRecognition provider
 - multiple recognition alternatives + confidence
 - configurable command parser
-- configurable single-letter parser
+- connector-based single-letter parser
+- configurable letter exceptions
 - unified voice-event interface
 - 24-phrase KriszWheel benchmark
 - separate transcript and game-event accuracy
@@ -32,36 +33,58 @@ http://localhost:8000
 
 Chrome or Edge is recommended for the browser SpeechRecognition experiment.
 
-## Project structure
-
-```text
-voice-recognition/
-├── benchmark/
-│   ├── benchmark.js
-│   └── cases.js
-├── config/
-│   └── config.js
-├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── BENCHMARK.md
-│   ├── INTEGRATION.md
-│   └── TESTING.md
-├── speech/
-│   ├── browser-provider.js
-│   ├── parsers.js
-│   ├── provider.js
-│   └── voice-engine.js
-├── tests/
-│   └── parsers.test.js
-├── app.js
-├── index.html
-├── package.json
-└── style.css
-```
-
 ## Configuration
 
-All tunable settings live in `config/config.js`: recognition language, alternatives, restart delay, microphone preferences, meter thresholds, command aliases and letter patterns.
+All tunable settings live in `config/config.js`.
+
+### Letter recognition rule
+
+The letter parser no longer needs a dictionary of code words.
+
+It searches for a configured connector such as `mint` or `min` and takes the **first letter of the following word**:
+
+```text
+B mint Balázs        -> B
+Cé mint Cecil        -> C
+akármi mint Dénes    -> D
+B min Balázs         -> B
+valami mint Ádám     -> Á
+SZ mint Szabolcs     -> S
+```
+
+So the phrase before `mint/min` is normally irrelevant.
+
+This matches the KriszWheel rule that characters are used separately: `SZ mint Szabolcs` resolves to `S`, not a separate `SZ` game letter.
+
+### Configurable exceptions
+
+Exceptions run before the normal rule:
+
+```javascript
+letters: {
+  connectors: ["mint", "min"],
+  exceptions: [
+    {
+      value: "Y",
+      after: ["ipszilon"],
+    },
+    {
+      value: "W",
+      before: ["duplavé", "dupla vé"],
+      after: ["walter"],
+    },
+  ],
+}
+```
+
+Therefore:
+
+```text
+Y mint ipszilon        -> Y
+Duplavé mint Walter    -> W
+```
+
+An exception can constrain the phrase before the connector, the word after it, or both.
 
 ## Unified voice events
 
@@ -71,10 +94,7 @@ Command example:
 {
   "type": "COMMAND",
   "command": "SPIN",
-  "label": "Pörgetés",
   "transcript": "szeretnék pörgetni",
-  "confidence": 0.91,
-  "alternativeIndex": 0,
   "provider": "browser"
 }
 ```
@@ -86,45 +106,21 @@ Letter example:
   "type": "LETTER",
   "value": "K",
   "transcript": "ká mint károly",
-  "confidence": 0.84,
-  "alternativeIndex": 1,
   "provider": "browser"
 }
 ```
 
 The demo also dispatches parsed events as `window` CustomEvents named `voice-event`.
 
-## Multiple alternatives
-
-`recognition.maxAlternatives` defaults to **3**. The parser tries alternatives in rank order, so a lower-ranked transcript can still produce the correct game event.
-
-## Hungarian letter parser
-
-Examples:
-
-```text
-K mint Károly  -> K
-ká mint Károly -> K
-B mint Béla    -> B
-Á mint Ádám    -> Á
-```
-
-A code word alone does not trigger a letter by default. Multi-character Hungarian alphabet entries such as CS, DZ, DZS, GY, LY, NY, SZ, TY and ZS are intentionally **not treated as one game letter**; KriszWheel uses the characters separately.
-
 ## Benchmark
 
-The built-in 24-phrase benchmark measures two independent metrics:
-
-1. transcript accuracy
-2. game-event accuracy
-
-This matters because imperfect text can still map to the correct command or letter. Runs can be exported as JSON.
+The built-in benchmark measures transcript accuracy separately from game-event accuracy and can export its run as JSON.
 
 See `docs/BENCHMARK.md`.
 
 ## Debug panel
 
-The expandable debug panel shows provider, recognition state, language, microphone, audio format, browser, last interim/final transcript, alternatives + confidence and the last unified voice event.
+The debug panel shows provider, recognition state, microphone/audio information, interim/final transcript, alternatives + confidence and the last unified voice event.
 
 ## Automated tests
 
@@ -140,17 +136,12 @@ npm test
 
 No `npm install` is required. See `docs/TESTING.md`.
 
-## Provider abstraction
+## Architecture and KriszWheel integration
 
-The current path is:
+See:
 
-```text
-VoiceEngine -> BrowserSpeechProvider -> Web Speech API
-```
-
-A future Whisper provider can use the same event contract without changing the parsers or KriszWheel game logic.
-
-See `docs/ARCHITECTURE.md` and `docs/INTEGRATION.md`.
+- `docs/ARCHITECTURE.md`
+- `docs/INTEGRATION.md`
 
 ## Whisper decision rule
 

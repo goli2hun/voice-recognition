@@ -13,34 +13,47 @@ test("command aliases are detected inside natural phrases", () => {
   assert.equal(result?.command, "SPIN");
 });
 
-test("Hungarian letter pattern resolves K", () => {
-  const result = parseLetter("K mint Károly", CONFIG.letters);
-  assert.equal(result?.value, "K");
+test("letter parser uses first letter after mint", () => {
+  assert.equal(parseLetter("B mint Balázs", CONFIG.letters)?.value, "B");
+  assert.equal(parseLetter("Cé mint Cecil", CONFIG.letters)?.value, "C");
+  assert.equal(parseLetter("akármit mondok mint Dénes", CONFIG.letters)?.value, "D");
 });
 
-test("spoken letter name resolves K", () => {
-  const result = parseLetter("ká mint Károly", CONFIG.letters);
-  assert.equal(result?.value, "K");
+test("letter parser accepts min as recognition variant of mint", () => {
+  assert.equal(parseLetter("B min Balázs", CONFIG.letters)?.value, "B");
 });
 
-test("accented letters remain distinct", () => {
-  assert.equal(parseLetter("A mint Aladár", CONFIG.letters)?.value, "A");
-  assert.equal(parseLetter("Á mint Ádám", CONFIG.letters)?.value, "Á");
+test("accented first letters remain accented", () => {
+  assert.equal(parseLetter("valami mint Ádám", CONFIG.letters)?.value, "Á");
+  assert.equal(parseLetter("valami mint Éva", CONFIG.letters)?.value, "É");
 });
 
-test("code word alone does not trigger a letter", () => {
+test("Y mint ipszilon uses configurable exception", () => {
+  const result = parseLetter("Y mint ipszilon", CONFIG.letters);
+  assert.equal(result?.value, "Y");
+  assert.equal(result?.source, "exception");
+});
+
+test("Duplavé mint Walter uses configurable exception", () => {
+  const result = parseLetter("Duplavé mint Walter", CONFIG.letters);
+  assert.equal(result?.value, "W");
+  assert.equal(result?.source, "exception");
+});
+
+test("a word without connector does not trigger a letter", () => {
   assert.equal(parseLetter("Károly tegnap telefonált", CONFIG.letters), null);
 });
 
-test("multi-character Hungarian letters are not treated as one game letter", () => {
-  assert.equal(parseLetter("SZ mint Szabolcs", CONFIG.letters), null);
+test("multi-character Hungarian letter names resolve to the code-word initial", () => {
+  assert.equal(parseLetter("SZ mint Szabolcs", CONFIG.letters)?.value, "S");
+  assert.equal(parseLetter("GY mint Gyula", CONFIG.letters)?.value, "G");
 });
 
 test("lower-ranked recognition alternative can still produce a valid event", () => {
   const result = parseAlternatives(
     [
-      { transcript: "ká mint káro", confidence: 0.81 },
-      { transcript: "ká mint károly", confidence: 0.72 },
+      { transcript: "ez most nem találat", confidence: 0.81 },
+      { transcript: "ká mint Károly", confidence: 0.72 },
     ],
     CONFIG,
   );

@@ -42,6 +42,38 @@ export function parseCommand(text, commands = []) {
   return null;
 }
 
+function exceptionMatches(exception, beforeText, afterWord) {
+  const beforeRules = exception.before ?? [];
+  const afterRules = exception.after ?? [];
+
+  const beforeMatches =
+    beforeRules.length === 0 ||
+    beforeRules.some((rule) => {
+      const normalizedRule = normalizeLetterText(rule);
+
+      return (
+        beforeText === normalizedRule ||
+        beforeText.endsWith(` ${normalizedRule}`)
+      );
+    });
+
+  const afterMatches =
+    afterRules.length === 0 ||
+    afterRules.some(
+      (rule) => normalizeLetterText(rule) === afterWord,
+    );
+
+  return beforeMatches && afterMatches;
+}
+
+function firstLetter(value) {
+  const match = value.match(/\p{L}/u);
+
+  return match
+    ? match[0].toLocaleUpperCase("hu-HU")
+    : null;
+}
+
 export function parseLetter(text, letterConfig) {
   if (!letterConfig?.enabled) {
     return null;
@@ -49,40 +81,52 @@ export function parseLetter(text, letterConfig) {
 
   const normalized = normalizeLetterText(text);
 
-  for (const entry of letterConfig.entries ?? []) {
-    for (const spoken of entry.spoken ?? []) {
-      for (const connector of letterConfig.connectors ?? ["mint"]) {
-        for (const codeWord of entry.codeWords ?? []) {
-          const phrase = normalizeLetterText(
-            `${spoken} ${connector} ${codeWord}`,
-          );
+  if (!normalized) {
+    return null;
+  }
 
-          if (phrase && containsPhrase(normalized, phrase)) {
-            return {
-              type: "LETTER",
-              value: entry.value,
-              matchedPhrase: phrase,
-            };
-          }
-        }
+  const words = normalized.split(" ");
+  const connectors = new Set(
+    (letterConfig.connectors ?? ["mint"])
+      .map(normalizeLetterText)
+      .filter(Boolean),
+  );
+
+  for (let connectorIndex = 0; connectorIndex < words.length; connectorIndex += 1) {
+    const connector = words[connectorIndex];
+
+    if (!connectors.has(connector)) {
+      continue;
+    }
+
+    const afterWord = words[connectorIndex + 1];
+
+    if (!afterWord) {
+      continue;
+    }
+
+    const beforeText = words.slice(0, connectorIndex).join(" ");
+
+    for (const exception of letterConfig.exceptions ?? []) {
+      if (exceptionMatches(exception, beforeText, afterWord)) {
+        return {
+          type: "LETTER",
+          value: String(exception.value).toLocaleUpperCase("hu-HU"),
+          matchedPhrase: `${connector} ${afterWord}`,
+          source: "exception",
+        };
       }
     }
 
-    if (letterConfig.allowCodeWordOnly) {
-      for (const codeWord of entry.codeWords ?? []) {
-        const normalizedCodeWord = normalizeLetterText(codeWord);
+    const value = firstLetter(afterWord);
 
-        if (
-          normalizedCodeWord &&
-          containsPhrase(normalized, normalizedCodeWord)
-        ) {
-          return {
-            type: "LETTER",
-            value: entry.value,
-            matchedPhrase: normalizedCodeWord,
-          };
-        }
-      }
+    if (value) {
+      return {
+        type: "LETTER",
+        value,
+        matchedPhrase: `${connector} ${afterWord}`,
+        source: "first-letter-after-connector",
+      };
     }
   }
 

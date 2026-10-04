@@ -18,59 +18,41 @@ Unified voice event
 UI / benchmark / future KriszWheel
 ```
 
+## Letter parser
+
+The letter parser is deliberately generic.
+
+It does **not** maintain a dictionary such as "Károly means K". Instead it:
+
+1. normalizes the transcript while preserving Hungarian accents,
+2. finds a configured connector (`mint`, `min`, etc.),
+3. takes the next word,
+4. checks configured exceptions,
+5. otherwise returns the first Unicode letter of that word.
+
+Examples:
+
+```text
+B mint Balázs      -> B
+Cé mint Cecil      -> C
+akármi min Dénes   -> D
+valami mint Ádám   -> Á
+```
+
+This makes the word before the connector mostly irrelevant and removes the need to enumerate code words.
+
+Exceptions are configuration-driven. They may match the phrase before the connector, the word after it, or both.
+
 ## Speech provider
 
 `speech/provider.js` defines the provider boundary. `speech/browser-provider.js` is the current Web Speech implementation.
 
-Responsibilities: lifecycle, language/config, interim/final results, alternatives, confidence, restart handling and provider errors.
-
-The provider does not understand SPIN, SOLVE or letters.
-
-## Parsers
-
-`speech/parsers.js` contains pure functions only.
-
-They normalize text, map aliases to commands, map `<letter> mint <code word>` to a single game letter and try multiple recognition alternatives.
-
-The parser layer has no microphone, DOM or game-state dependency.
+The provider owns lifecycle, interim/final results, alternatives, confidence and restart handling. It does not understand game commands or letters.
 
 ## VoiceEngine
 
-`speech/voice-engine.js` connects provider output to the parsers and produces one stable event contract.
-
-Example:
-
-```javascript
-{
-  type: "LETTER",
-  value: "K",
-  transcript: "ká mint károly",
-  confidence: 0.82,
-  alternativeIndex: 1,
-  provider: "browser"
-}
-```
-
-## Application layer
-
-`app.js` handles demo concerns: microphone selection, meter, UI, debug panel, benchmark and JSON download.
-
-Most UI code does not need to move into KriszWheel.
-
-## Multiple alternatives
-
-The parser tries recognition alternatives in order and uses the first one that yields a valid game event. This improves command-level reliability without fuzzy matching.
+`speech/voice-engine.js` connects provider output to the pure parsers and produces stable COMMAND/LETTER events.
 
 ## Future Whisper provider
 
-A future `whisper-provider.js` should emit the same final payload shape:
-
-```javascript
-{
-  alternatives: [
-    { transcript: "...", confidence: null }
-  ]
-}
-```
-
-Then VoiceEngine, parsers and KriszWheel event handling stay unchanged.
+A future Whisper provider can emit the same final-alternatives payload. VoiceEngine, parsers and KriszWheel event handling then remain unchanged.
