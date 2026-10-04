@@ -122,6 +122,25 @@ See `docs/BENCHMARK.md`.
 
 The debug panel shows provider, recognition state, microphone/audio information, interim/final transcript, alternatives + confidence and the last unified voice event.
 
+## Current background-noise policy
+
+The current implementation intentionally does **not** add an extra custom noise-processing layer.
+
+A non-zero level on the volume meter is acceptable when there is room/background noise. The important metric is whether KriszWheel commands and letters are still recognized reliably.
+
+The next decision should therefore be based on benchmark results under real playing conditions, not on whether the meter reaches complete silence.
+
+If background noise later causes measurable recognition problems, optional next steps are:
+
+- request browser audio constraints such as `noiseSuppression`,
+- enable `echoCancellation`,
+- enable `autoGainControl`,
+- estimate a short noise floor before speech,
+- derive a dynamic voice-activity threshold from that noise floor,
+- show the measured noise floor in the debug panel.
+
+These are deliberately postponed until benchmark data shows they are needed.
+
 ## Automated tests
 
 ```bash

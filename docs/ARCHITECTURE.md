@@ -49,6 +49,20 @@ Exceptions are configuration-driven. They may match the phrase before the connec
 
 The provider owns lifecycle, interim/final results, alternatives, confidence and restart handling. It does not understand game commands or letters.
 
+## Audio diagnostics vs speech recognition
+
+The volume meter is a diagnostic signal, not a gate for recognition.
+
+Background room noise can keep the meter above zero without being a defect. At the current stage the system does not reject audio based on a hard dB threshold, because doing so too early could suppress quiet speech.
+
+The intended evaluation order is:
+
+1. measure real command/letter accuracy with the benchmark,
+2. inspect failures and background conditions,
+3. only then add audio preprocessing or voice-activity logic if the data justifies it.
+
+Potential future audio-processing options include browser constraints (`noiseSuppression`, `echoCancellation`, `autoGainControl`) and a measured noise-floor-based threshold.
+
 ## VoiceEngine
 
 `speech/voice-engine.js` connects provider output to the pure parsers and produces stable COMMAND/LETTER events.
