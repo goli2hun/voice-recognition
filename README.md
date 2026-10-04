@@ -15,6 +15,27 @@ The goal is deliberately small:
 - map selected phrases to simple game-oriented commands,
 - keep the implementation framework-free.
 
+## Configuration
+
+Project settings live in:
+
+```text
+config/config.js
+```
+
+The application logic reads that file through `window.VOICE_RECOGNITION_CONFIG`, so normal tuning does not require editing `app.js`.
+
+Configurable values currently include:
+
+- recognition language and Web Speech behaviour,
+- recognition restart delay,
+- microphone auto-selection preference rules,
+- saved microphone storage key,
+- volume-meter FFT size, dB floor and signal thresholds,
+- all command IDs, labels and aliases.
+
+For example, Szerencsekerék command phrases can be added directly under `commands` in `config/config.js`.
+
 ## Stack
 
 - HTML

@@ -1,30 +1,14 @@
 const SpeechRecognition =
   window.SpeechRecognition || window.webkitSpeechRecognition;
 
-const MIC_STORAGE_KEY = "voice-recognition.microphone-device-id";
+const CONFIG = window.VOICE_RECOGNITION_CONFIG;
 
-const COMMANDS = [
-  {
-    id: "SPIN",
-    label: "Pörgetés",
-    aliases: ["pörgetek", "pörgetnék", "pörgetni", "pörgess", "pörgetés"],
-  },
-  {
-    id: "SOLVE",
-    label: "Megfejtés",
-    aliases: ["megfejtés", "megfejtem", "megfejteni", "megoldás"],
-  },
-  {
-    id: "VOWEL",
-    label: "Magánhangzó",
-    aliases: ["magánhangzó", "magánhangzót"],
-  },
-  {
-    id: "GAME",
-    label: "Játék",
-    aliases: ["játék"],
-  },
-];
+if (!CONFIG) {
+  throw new Error("Missing config/config.js (VOICE_RECOGNITION_CONFIG).");
+}
+
+const MIC_STORAGE_KEY = CONFIG.storage.microphoneDeviceIdKey;
+const COMMANDS = CONFIG.commands;
 
 const startBtn = document.querySelector("#startBtn");
 const stopBtn = document.querySelector("#stopBtn");
@@ -183,29 +167,14 @@ function microphonePreferenceScore(device) {
 
   let score = 0;
 
-  if (label.includes("mikrofon") || label.includes("microphone") || label.includes(" mic")) {
-    score += 30;
-  }
-
-  if (label.includes("webcam") || label.includes("c270")) {
-    score += 20;
-  }
-
-  if (label.includes("logi") || label.includes("logitech")) {
-    score += 10;
-  }
-
-  if (
-    label.includes("sztereo kevero") ||
-    label.includes("stereo mix") ||
-    label.includes("what u hear") ||
-    label.includes("loopback")
-  ) {
-    score -= 100;
+  for (const rule of CONFIG.microphone.preferenceRules) {
+    if (label.includes(normalizeText(rule.contains))) {
+      score += rule.score;
+    }
   }
 
   if (device.deviceId === "default") {
-    score -= 2;
+    score -= CONFIG.microphone.defaultDevicePenalty;
   }
 
   return score;
@@ -322,9 +291,9 @@ function renderMeter(level, db) {
   volumeMeter.setAttribute("aria-valuenow", String(roundedLevel));
   meterValue.textContent = Number.isFinite(db) ? `${db.toFixed(1)} dB` : "— dB";
 
-  if (level >= 18) {
+  if (level >= CONFIG.meter.strongSignalPercent) {
     signalText.textContent = "Jel érkezik";
-  } else if (level >= 5) {
+  } else if (level >= CONFIG.meter.weakSignalPercent) {
     signalText.textContent = "Gyenge jel";
   } else {
     signalText.textContent = "Csend / nincs jel";
@@ -348,13 +317,13 @@ function updateVolumeMeter() {
   const rms = Math.sqrt(sumSquares / meterBuffer.length);
   const db = rms > 0 ? 20 * Math.log10(rms) : -Infinity;
   const rawLevel = Number.isFinite(db)
-    ? Math.max(0, Math.min(100, ((db + 60) / 60) * 100))
+    ? Math.max(0, Math.min(100, ((db - CONFIG.meter.floorDb) / -CONFIG.meter.floorDb) * 100))
     : 0;
 
   smoothedMeterLevel =
     rawLevel >= smoothedMeterLevel
       ? rawLevel
-      : smoothedMeterLevel * 0.84;
+      : smoothedMeterLevel * CONFIG.meter.releaseSmoothing;
 
   renderMeter(smoothedMeterLevel, db);
 
@@ -416,7 +385,7 @@ async function startMicrophoneDiagnostics() {
   }
 
   analyser = audioContext.createAnalyser();
-  analyser.fftSize = 1024;
+  analyser.fftSize = CONFIG.meter.fftSize;
 
   sourceNode = audioContext.createMediaStreamSource(microphoneStream);
   sourceNode.connect(analyser);
@@ -595,10 +564,10 @@ function stopForRecognitionError(status, message) {
 
 function configureRecognition() {
   recognition = new SpeechRecognition();
-  recognition.lang = "hu-HU";
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.maxAlternatives = 1;
+  recognition.lang = CONFIG.recognition.language;
+  recognition.continuous = CONFIG.recognition.continuous;
+  recognition.interimResults = CONFIG.recognition.interimResults;
+  recognition.maxAlternatives = CONFIG.recognition.maxAlternatives;
 
   recognition.onstart = () => {
     setListeningControls(true);
@@ -693,7 +662,7 @@ function configureRecognition() {
       } catch (error) {
         handleRecognitionStartFailure(error);
       }
-    }, 250);
+    }, CONFIG.recognition.restartDelayMs);
   };
 }
 
