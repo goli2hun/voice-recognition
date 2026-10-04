@@ -28,6 +28,39 @@
         </div>
       </div>
 
+      <div class="microphone-diagnostics" aria-label="Mikrofon diagnosztika">
+        <div class="device-panel">
+          <p class="diagnostic-label">Aktív audio input</p>
+          <strong id="deviceName">Még nincs megnyitva</strong>
+          <span id="deviceDetails" class="muted">Az eszköz neve mikrofonengedély után jelenik meg.</span>
+        </div>
+
+        <div class="meter-panel">
+          <div class="meter-heading">
+            <div>
+              <p class="diagnostic-label">Bemeneti jelszint</p>
+              <strong id="signalText">Nincs mérés</strong>
+            </div>
+            <span id="meterValue" class="meter-value">— dB</span>
+          </div>
+          <div
+            id="volumeMeter"
+            class="volume-meter"
+            role="meter"
+            aria-label="Mikrofon hangerő"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+          >
+            <div id="volumeFill" class="volume-fill"></div>
+          </div>
+          <div class="meter-scale" aria-hidden="true">
+            <span>Csend</span>
+            <span>Erős jel</span>
+          </div>
+        </div>
+      </div>
+
       <div class="controls">
         <button id="startBtn" class="button button-primary" type="button">🎤 Beszéd indítása</button>
         <button id="stopBtn" class="button" type="button" disabled>■ Leállítás</button>
