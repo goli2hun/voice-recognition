@@ -1,12 +1,9 @@
-// Voice Recognition project configuration.
-// Edit this file to tune recognition, microphone selection, metering and commands.
-
-window.VOICE_RECOGNITION_CONFIG = {
+export const CONFIG = {
   recognition: {
     language: "hu-HU",
     continuous: true,
     interimResults: true,
-    maxAlternatives: 1,
+    maxAlternatives: 3,
     restartDelayMs: 250,
   },
 
@@ -15,7 +12,6 @@ window.VOICE_RECOGNITION_CONFIG = {
   },
 
   microphone: {
-    // Higher score = more preferred when the app has to choose automatically.
     preferenceRules: [
       { contains: "mikrofon", score: 30 },
       { contains: "microphone", score: 30 },
@@ -24,8 +20,6 @@ window.VOICE_RECOGNITION_CONFIG = {
       { contains: "c270", score: 20 },
       { contains: "logi", score: 10 },
       { contains: "logitech", score: 10 },
-
-      // Loopback/system-audio inputs should not win automatic selection.
       { contains: "sztereo kevero", score: -100 },
       { contains: "stereo mix", score: -100 },
       { contains: "what u hear", score: -100 },
@@ -42,16 +36,18 @@ window.VOICE_RECOGNITION_CONFIG = {
     releaseSmoothing: 0.84,
   },
 
+  debug: {
+    maxAlternativesShown: 5,
+  },
+
+  benchmark: {
+    enabled: true,
+  },
 
   letters: {
     enabled: true,
-
-    // The parser expects phrases such as "K mint Károly".
-    // Code-word-only matching is off by default to avoid false positives
-    // when a normal sentence happens to contain a person's name.
     connectors: ["mint"],
     allowCodeWordOnly: false,
-
     entries: [
       { value: "A", spoken: ["a"], codeWords: ["aladár", "anna"] },
       { value: "Á", spoken: ["á"], codeWords: ["ádám"] },
@@ -114,3 +110,5 @@ window.VOICE_RECOGNITION_CONFIG = {
     },
   ],
 };
+
+export default CONFIG;

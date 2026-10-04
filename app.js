@@ -1,49 +1,62 @@
-const SpeechRecognition =
-  window.SpeechRecognition || window.webkitSpeechRecognition;
+import CONFIG from "./config/config.js";
+import { VoiceEngine } from "./speech/voice-engine.js";
+import { BenchmarkSession } from "./benchmark/benchmark.js";
+import BENCHMARK_CASES from "./benchmark/cases.js";
+import { normalizeCommandText } from "./speech/parsers.js";
 
-const CONFIG = window.VOICE_RECOGNITION_CONFIG;
+const $ = (selector) => document.querySelector(selector);
 
-if (!CONFIG) {
-  throw new Error("Missing config/config.js (VOICE_RECOGNITION_CONFIG).");
-}
+const ui = {
+  startBtn: $("#startBtn"),
+  stopBtn: $("#stopBtn"),
+  clearBtn: $("#clearBtn"),
+  refreshMicBtn: $("#refreshMicBtn"),
+  microphoneSelect: $("#microphoneSelect"),
+  supportText: $("#supportText"),
+  statusBadge: $("#statusBadge"),
+  statusText: $("#statusText"),
+  deviceName: $("#deviceName"),
+  deviceDetails: $("#deviceDetails"),
+  signalText: $("#signalText"),
+  meterValue: $("#meterValue"),
+  volumeMeter: $("#volumeMeter"),
+  volumeFill: $("#volumeFill"),
+  interimTranscript: $("#interimTranscript"),
+  finalTranscript: $("#finalTranscript"),
+  keywordList: $("#keywordList"),
+  commandValue: $("#commandValue"),
+  commandSource: $("#commandSource"),
+  letterValue: $("#letterValue"),
+  letterSource: $("#letterSource"),
+  benchmarkState: $("#benchmarkState"),
+  benchmarkPrompt: $("#benchmarkPrompt"),
+  benchmarkExpected: $("#benchmarkExpected"),
+  benchmarkProgress: $("#benchmarkProgress"),
+  benchmarkActual: $("#benchmarkActual"),
+  benchmarkResult: $("#benchmarkResult"),
+  benchmarkTranscriptScore: $("#benchmarkTranscriptScore"),
+  benchmarkEventScore: $("#benchmarkEventScore"),
+  benchmarkAttemptCount: $("#benchmarkAttemptCount"),
+  benchmarkStartBtn: $("#benchmarkStartBtn"),
+  benchmarkNextBtn: $("#benchmarkNextBtn"),
+  benchmarkSkipBtn: $("#benchmarkSkipBtn"),
+  benchmarkExportBtn: $("#benchmarkExportBtn"),
+  benchmarkHistory: $("#benchmarkHistory"),
+  debugProvider: $("#debugProvider"),
+  debugState: $("#debugState"),
+  debugLanguage: $("#debugLanguage"),
+  debugDevice: $("#debugDevice"),
+  debugAudio: $("#debugAudio"),
+  debugBrowser: $("#debugBrowser"),
+  debugInterim: $("#debugInterim"),
+  debugFinal: $("#debugFinal"),
+  debugAlternatives: $("#debugAlternatives"),
+  debugVoiceEvent: $("#debugVoiceEvent"),
+};
 
-const MIC_STORAGE_KEY = CONFIG.storage.microphoneDeviceIdKey;
-const COMMANDS = CONFIG.commands;
-const LETTER_CONFIG = CONFIG.letters;
-
-const startBtn = document.querySelector("#startBtn");
-const stopBtn = document.querySelector("#stopBtn");
-const clearBtn = document.querySelector("#clearBtn");
-const refreshMicBtn = document.querySelector("#refreshMicBtn");
-const microphoneSelect = document.querySelector("#microphoneSelect");
-const supportText = document.querySelector("#supportText");
-const statusBadge = document.querySelector("#statusBadge");
-const statusText = document.querySelector("#statusText");
-const deviceName = document.querySelector("#deviceName");
-const deviceDetails = document.querySelector("#deviceDetails");
-const signalText = document.querySelector("#signalText");
-const meterValue = document.querySelector("#meterValue");
-const volumeMeter = document.querySelector("#volumeMeter");
-const volumeFill = document.querySelector("#volumeFill");
-const interimTranscript = document.querySelector("#interimTranscript");
-const finalTranscriptElement = document.querySelector("#finalTranscript");
-const keywordList = document.querySelector("#keywordList");
-const commandValue = document.querySelector("#commandValue");
-const commandSource = document.querySelector("#commandSource");
-const letterValue = document.querySelector("#letterValue");
-const letterSource = document.querySelector("#letterSource");
-
-const aliases = [...new Set(COMMANDS.flatMap((command) => command.aliases))]
-  .sort((a, b) => b.length - a.length);
-
-const highlightPattern = new RegExp(
-  `(${aliases.map(escapeRegExp).join("|")})`,
-  "giu",
-);
-
-let recognition = null;
-let shouldListen = false;
+const benchmark = new BenchmarkSession(BENCHMARK_CASES);
 let finalTranscript = "";
+let shouldListen = false;
 let audioInputs = [];
 
 let microphoneStream = null;
@@ -53,80 +66,40 @@ let sourceNode = null;
 let meterBuffer = null;
 let meterAnimationFrame = null;
 let smoothedMeterLevel = 0;
+let activeDeviceMetadata = {
+  label: null,
+  sampleRate: null,
+  channelCount: null,
+};
+
+const engine = new VoiceEngine(CONFIG, {
+  onState: handleRecognitionState,
+  onInterim: handleInterim,
+  onFinal: handleFinal,
+  onVoiceEvent: handleVoiceEvent,
+  onError: handleRecognitionError,
+});
+
+const commandAliases = [
+  ...new Set(CONFIG.commands.flatMap((command) => command.aliases ?? [])),
+].sort((a, b) => b.length - a.length);
+
+const highlightPattern = new RegExp(
+  `(${commandAliases.map(escapeRegExp).join("|")})`,
+  "giu",
+);
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function escapeHtml(value) {
-  return value
+  return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-function normalizeText(value) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("hu-HU");
-}
-
-function normalizeLetterText(value) {
-  return value
-    .normalize("NFC")
-    .toLocaleLowerCase("hu-HU")
-    .replace(/[^\\p{L}\\p{N}]+/gu, " ")
-    .replace(/\\s+/g, " ")
-    .trim();
-}
-
-function detectLetter(value) {
-  if (!LETTER_CONFIG?.enabled) {
-    return null;
-  }
-
-  const normalizedText = normalizeLetterText(value);
-  const paddedText = ` ${normalizedText} `;
-
-  for (const entry of LETTER_CONFIG.entries) {
-    const spokenForms = entry.spoken ?? [];
-    const codeWords = entry.codeWords ?? [];
-
-    for (const spoken of spokenForms) {
-      for (const connector of LETTER_CONFIG.connectors ?? ["mint"]) {
-        for (const codeWord of codeWords) {
-          const phrase = normalizeLetterText(
-            `${spoken} ${connector} ${codeWord}`,
-          );
-
-          if (paddedText.includes(` ${phrase} `)) {
-            return {
-              value: entry.value,
-              matchedPhrase: phrase,
-            };
-          }
-        }
-      }
-    }
-
-    if (LETTER_CONFIG.allowCodeWordOnly) {
-      for (const codeWord of codeWords) {
-        const normalizedCodeWord = normalizeLetterText(codeWord);
-
-        if (paddedText.includes(` ${normalizedCodeWord} `)) {
-          return {
-            value: entry.value,
-            matchedPhrase: normalizedCodeWord,
-          };
-        }
-      }
-    }
-  }
-
-  return null;
 }
 
 function highlightKeywords(value, placeholder) {
@@ -137,21 +110,27 @@ function highlightKeywords(value, placeholder) {
   return escapeHtml(value).replace(highlightPattern, "<mark>$1</mark>");
 }
 
-function detectCommand(value) {
-  const normalized = normalizeText(value);
+function setStatus(state, text) {
+  ui.statusBadge.dataset.state = state;
+  ui.statusText.textContent = text;
+}
 
-  return COMMANDS.find((command) =>
-    command.aliases.some((alias) =>
-      normalized.includes(normalizeText(alias)),
-    ),
-  );
+function setListeningControls(isListening) {
+  ui.startBtn.disabled =
+    isListening ||
+    !engine.isSupported() ||
+    !navigator.mediaDevices?.getUserMedia;
+
+  ui.stopBtn.disabled = !isListening;
+  ui.microphoneSelect.disabled = isListening || audioInputs.length === 0;
+  ui.refreshMicBtn.disabled = isListening;
 }
 
 function renderKeywordList() {
-  keywordList.replaceChildren();
+  ui.keywordList.replaceChildren();
 
-  for (const command of COMMANDS) {
-    for (const alias of command.aliases) {
+  for (const command of CONFIG.commands) {
+    for (const alias of command.aliases ?? []) {
       const chip = document.createElement("span");
       chip.className = "keyword-chip";
 
@@ -162,60 +141,150 @@ function renderKeywordList() {
       phrase.textContent = alias;
 
       chip.append(commandName, phrase);
-      keywordList.append(chip);
+      ui.keywordList.append(chip);
     }
   }
 }
 
-function setStatus(state, text) {
-  statusBadge.dataset.state = state;
-  statusText.textContent = text;
-}
-
-function setListeningControls(isListening) {
-  startBtn.disabled =
-    isListening ||
-    !SpeechRecognition ||
-    !navigator.mediaDevices?.getUserMedia;
-
-  stopBtn.disabled = !isListening;
-  microphoneSelect.disabled = isListening || audioInputs.length === 0;
-  refreshMicBtn.disabled = isListening;
-}
-
 function renderTranscripts(interim = "") {
-  interimTranscript.innerHTML = highlightKeywords(
+  ui.interimTranscript.innerHTML = highlightKeywords(
     interim,
     shouldListen ? "Hallgatózom…" : "Indítsd el a mikrofont, majd beszélj…",
   );
 
-  finalTranscriptElement.innerHTML = highlightKeywords(
+  ui.finalTranscript.innerHTML = highlightKeywords(
     finalTranscript,
     "A véglegesített szöveg itt gyűlik majd.",
   );
 }
 
-function renderDetectedCommand(command, sourceText) {
-  if (!command) {
-    return;
-  }
+function clearOutput() {
+  finalTranscript = "";
+  renderTranscripts();
 
-  commandValue.textContent = `${command.id} · ${command.label}`;
-  commandSource.textContent = `„${sourceText.trim()}”`;
+  ui.commandValue.textContent = "—";
+  ui.commandSource.textContent = "Még nincs találat.";
+  ui.letterValue.textContent = "—";
+  ui.letterSource.textContent = "Mondd például: „K mint Károly”.";
+
+  ui.debugInterim.textContent = "—";
+  ui.debugFinal.textContent = "—";
+  ui.debugAlternatives.innerHTML = "<li>—</li>";
+  ui.debugVoiceEvent.textContent = "—";
 }
 
-function renderDetectedLetter(letter, sourceText) {
-  if (!letter) {
+function handleRecognitionState(state) {
+  ui.debugState.textContent = state;
+
+  if (state === "listening") {
+    setStatus("listening", "Hallgatózom");
+    ui.supportText.textContent =
+      `A kiválasztott mikrofon és a ${CONFIG.recognition.language} felismerés aktív.`;
+  } else if (state === "restarting") {
+    setStatus("restarting", "Felismerés újraindítása…");
+  } else if (state === "starting") {
+    setStatus("starting", "Felismerés indítása…");
+  } else if (state === "stopped" && !shouldListen) {
+    setStatus("idle", "Készen áll");
+  }
+}
+
+function handleInterim(payload) {
+  renderTranscripts(payload.transcript);
+  ui.debugInterim.textContent = payload.transcript || "—";
+}
+
+function handleFinal(payload) {
+  const primaryTranscript = payload.alternatives[0]?.transcript ?? "";
+
+  if (primaryTranscript) {
+    finalTranscript = `${finalTranscript} ${primaryTranscript}`.trim();
+  }
+
+  renderTranscripts();
+  ui.debugFinal.textContent = primaryTranscript || "—";
+  renderDebugAlternatives(payload.alternatives);
+
+  if (benchmark.active && !benchmark.currentRecorded) {
+    benchmark.recordRecognition(payload);
+    renderBenchmark();
+  }
+}
+
+function handleVoiceEvent(event) {
+  ui.debugVoiceEvent.textContent = JSON.stringify(event, null, 2);
+
+  if (event.type === "COMMAND") {
+    ui.commandValue.textContent = `${event.command} · ${event.label}`;
+    ui.commandSource.textContent = `„${event.transcript}”`;
+  }
+
+  if (event.type === "LETTER") {
+    ui.letterValue.textContent = event.value;
+    ui.letterSource.textContent = `„${event.transcript}”`;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent("voice-event", {
+      detail: event,
+    }),
+  );
+}
+
+function handleRecognitionError(error) {
+  if (error.code === "no-speech") {
+    setStatus("restarting", "Nem hallottam beszédet");
     return;
   }
 
-  letterValue.textContent = letter.value;
-  letterSource.textContent = `„${sourceText.trim()}”`;
+  const messages = {
+    "not-allowed": "A böngésző nem engedte a beszédfelismerést.",
+    "service-not-allowed": "A beszédfelismerő szolgáltatás nem engedélyezett.",
+    "audio-capture": "A SpeechRecognition nem kapott audio bemenetet.",
+    network: "A böngésző beszédfelismerő szolgáltatása nem érhető el.",
+  };
+
+  setStatus("error", `Hiba: ${error.code}`);
+  ui.supportText.textContent =
+    messages[error.code] ?? `SpeechRecognition hiba: ${error.code}`;
+
+  if (error.fatal) {
+    shouldListen = false;
+    setListeningControls(false);
+    stopMicrophoneDiagnostics({ keepDeviceInfo: true });
+  }
+}
+
+function renderDebugAlternatives(alternatives = []) {
+  ui.debugAlternatives.replaceChildren();
+
+  const visible = alternatives.slice(0, CONFIG.debug.maxAlternativesShown);
+
+  if (visible.length === 0) {
+    const item = document.createElement("li");
+    item.textContent = "—";
+    ui.debugAlternatives.append(item);
+    return;
+  }
+
+  visible.forEach((alternative, index) => {
+    const item = document.createElement("li");
+    const confidence =
+      alternative.confidence === null
+        ? "n/a"
+        : `${Math.round(alternative.confidence * 100)}%`;
+
+    item.textContent =
+      `#${index + 1} · ${confidence} · ${alternative.transcript}`;
+    ui.debugAlternatives.append(item);
+  });
 }
 
 function getSavedMicrophoneId() {
   try {
-    return window.localStorage.getItem(MIC_STORAGE_KEY);
+    return window.localStorage.getItem(
+      CONFIG.storage.microphoneDeviceIdKey,
+    );
   } catch {
     return null;
   }
@@ -223,19 +292,21 @@ function getSavedMicrophoneId() {
 
 function saveMicrophoneId(deviceId) {
   try {
-    window.localStorage.setItem(MIC_STORAGE_KEY, deviceId);
+    window.localStorage.setItem(
+      CONFIG.storage.microphoneDeviceIdKey,
+      deviceId,
+    );
   } catch {
     // localStorage can be unavailable in strict privacy modes.
   }
 }
 
 function microphonePreferenceScore(device) {
-  const label = normalizeText(device.label || "");
-
+  const label = normalizeCommandText(device.label || "");
   let score = 0;
 
   for (const rule of CONFIG.microphone.preferenceRules) {
-    if (label.includes(normalizeText(rule.contains))) {
+    if (label.includes(normalizeCommandText(rule.contains))) {
       score += rule.score;
     }
   }
@@ -261,26 +332,26 @@ function choosePreferredMicrophone(devices) {
 
 function renderSelectedDevicePreview() {
   const selected = audioInputs.find(
-    (device) => device.deviceId === microphoneSelect.value,
+    (device) => device.deviceId === ui.microphoneSelect.value,
   );
 
   if (!selected || microphoneStream) {
     return;
   }
 
-  deviceName.textContent = selected.label || "Kiválasztott mikrofon";
-  deviceDetails.textContent = "Kiválasztva · indításkor ezt az inputot nyitjuk meg.";
+  ui.deviceName.textContent = selected.label || "Kiválasztott mikrofon";
+  ui.deviceDetails.textContent =
+    "Kiválasztva · indításkor ezt az inputot nyitjuk meg.";
+  ui.debugDevice.textContent = selected.label || "Kiválasztott mikrofon";
 }
 
 async function requestMicrophonePermission() {
-  const permissionStream = await navigator.mediaDevices.getUserMedia({
+  const stream = await navigator.mediaDevices.getUserMedia({
     audio: true,
     video: false,
   });
 
-  for (const track of permissionStream.getTracks()) {
-    track.stop();
-  }
+  stream.getTracks().forEach((track) => track.stop());
 }
 
 async function refreshMicrophoneList({
@@ -294,19 +365,19 @@ async function refreshMicrophoneList({
   const devices = await navigator.mediaDevices.enumerateDevices();
   audioInputs = devices.filter((device) => device.kind === "audioinput");
 
-  const previousValue = microphoneSelect.value;
+  const previousValue = ui.microphoneSelect.value;
   const preferredId = preferBest
     ? choosePreferredMicrophone(audioInputs)
     : getSavedMicrophoneId() || previousValue;
 
-  microphoneSelect.replaceChildren();
+  ui.microphoneSelect.replaceChildren();
 
   if (audioInputs.length === 0) {
     const option = document.createElement("option");
-    option.textContent = "Nem található mikrofon";
     option.value = "";
-    microphoneSelect.append(option);
-    microphoneSelect.disabled = true;
+    option.textContent = "Nem található mikrofon";
+    ui.microphoneSelect.append(option);
+    setListeningControls(false);
     return;
   }
 
@@ -314,7 +385,7 @@ async function refreshMicrophoneList({
     const option = document.createElement("option");
     option.value = device.deviceId;
     option.textContent = device.label || `Mikrofon ${index + 1}`;
-    microphoneSelect.append(option);
+    ui.microphoneSelect.append(option);
   });
 
   const selectedId =
@@ -323,11 +394,11 @@ async function refreshMicrophoneList({
       : choosePreferredMicrophone(audioInputs);
 
   if (selectedId) {
-    microphoneSelect.value = selectedId;
+    ui.microphoneSelect.value = selectedId;
     saveMicrophoneId(selectedId);
   }
 
-  microphoneSelect.disabled = false;
+  setListeningControls(shouldListen);
   renderSelectedDevicePreview();
 }
 
@@ -335,35 +406,46 @@ function renderDeviceInfo(track) {
   const settings = track.getSettings?.() ?? {};
   const details = [];
 
-  deviceName.textContent = track.label || "Kiválasztott mikrofon";
+  activeDeviceMetadata = {
+    label: track.label || "Kiválasztott mikrofon",
+    sampleRate: settings.sampleRate ?? null,
+    channelCount: settings.channelCount ?? null,
+  };
 
-  if (settings.sampleRate) {
-    details.push(`${settings.sampleRate} Hz`);
+  ui.deviceName.textContent = activeDeviceMetadata.label;
+
+  if (activeDeviceMetadata.sampleRate) {
+    details.push(`${activeDeviceMetadata.sampleRate} Hz`);
   }
 
-  if (settings.channelCount) {
-    details.push(`${settings.channelCount} csatorna`);
+  if (activeDeviceMetadata.channelCount) {
+    details.push(`${activeDeviceMetadata.channelCount} csatorna`);
   }
 
-  deviceDetails.textContent =
+  ui.deviceDetails.textContent =
     details.length > 0
       ? details.join(" · ")
       : "A böngésző által megnyitott audio input.";
+
+  ui.debugDevice.textContent = activeDeviceMetadata.label;
+  ui.debugAudio.textContent =
+    details.length > 0 ? details.join(" · ") : "n/a";
 }
 
 function renderMeter(level, db) {
   const roundedLevel = Math.round(level);
 
-  volumeFill.style.width = `${roundedLevel}%`;
-  volumeMeter.setAttribute("aria-valuenow", String(roundedLevel));
-  meterValue.textContent = Number.isFinite(db) ? `${db.toFixed(1)} dB` : "— dB";
+  ui.volumeFill.style.width = `${roundedLevel}%`;
+  ui.volumeMeter.setAttribute("aria-valuenow", String(roundedLevel));
+  ui.meterValue.textContent =
+    Number.isFinite(db) ? `${db.toFixed(1)} dB` : "— dB";
 
   if (level >= CONFIG.meter.strongSignalPercent) {
-    signalText.textContent = "Jel érkezik";
+    ui.signalText.textContent = "Jel érkezik";
   } else if (level >= CONFIG.meter.weakSignalPercent) {
-    signalText.textContent = "Gyenge jel";
+    ui.signalText.textContent = "Gyenge jel";
   } else {
-    signalText.textContent = "Csend / nincs jel";
+    ui.signalText.textContent = "Csend / nincs jel";
   }
 }
 
@@ -384,7 +466,13 @@ function updateVolumeMeter() {
   const rms = Math.sqrt(sumSquares / meterBuffer.length);
   const db = rms > 0 ? 20 * Math.log10(rms) : -Infinity;
   const rawLevel = Number.isFinite(db)
-    ? Math.max(0, Math.min(100, ((db - CONFIG.meter.floorDb) / -CONFIG.meter.floorDb) * 100))
+    ? Math.max(
+        0,
+        Math.min(
+          100,
+          ((db - CONFIG.meter.floorDb) / -CONFIG.meter.floorDb) * 100,
+        ),
+      )
     : 0;
 
   smoothedMeterLevel =
@@ -393,7 +481,6 @@ function updateVolumeMeter() {
       : smoothedMeterLevel * CONFIG.meter.releaseSmoothing;
 
   renderMeter(smoothedMeterLevel, db);
-
   meterAnimationFrame = window.requestAnimationFrame(updateVolumeMeter);
 }
 
@@ -402,25 +489,23 @@ async function startMicrophoneDiagnostics() {
     return;
   }
 
-  if (audioInputs.length === 0 || !microphoneSelect.value) {
+  if (audioInputs.length === 0 || !ui.microphoneSelect.value) {
     await refreshMicrophoneList({
       requestPermission: true,
       preferBest: true,
     });
   }
 
-  const selectedDeviceId = microphoneSelect.value;
+  const selectedDeviceId = ui.microphoneSelect.value;
 
-  signalText.textContent = "Mikrofon megnyitása…";
-  deviceName.textContent = "Kapcsolódás…";
-  deviceDetails.textContent = "A kiválasztott audio input megnyitása.";
-
-  const audioConstraint = selectedDeviceId
-    ? { deviceId: { exact: selectedDeviceId } }
-    : true;
+  ui.signalText.textContent = "Mikrofon megnyitása…";
+  ui.deviceName.textContent = "Kapcsolódás…";
+  ui.deviceDetails.textContent = "A kiválasztott audio input megnyitása.";
 
   microphoneStream = await navigator.mediaDevices.getUserMedia({
-    audio: audioConstraint,
+    audio: selectedDeviceId
+      ? { deviceId: { exact: selectedDeviceId } }
+      : true,
     video: false,
   });
 
@@ -431,21 +516,24 @@ async function startMicrophoneDiagnostics() {
   }
 
   const actualDeviceId = track.getSettings?.().deviceId;
+
   if (actualDeviceId) {
-    const matchingOption = audioInputs.find(
+    const matchingDevice = audioInputs.find(
       (device) => device.deviceId === actualDeviceId,
     );
 
-    if (matchingOption) {
-      microphoneSelect.value = matchingOption.deviceId;
-      saveMicrophoneId(matchingOption.deviceId);
+    if (matchingDevice) {
+      ui.microphoneSelect.value = matchingDevice.deviceId;
+      saveMicrophoneId(matchingDevice.deviceId);
     }
   }
 
   renderDeviceInfo(track);
 
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  audioContext = new AudioContext();
+  const AudioContextClass =
+    window.AudioContext || window.webkitAudioContext;
+
+  audioContext = new AudioContextClass();
 
   if (audioContext.state === "suspended") {
     await audioContext.resume();
@@ -466,9 +554,10 @@ async function startMicrophoneDiagnostics() {
     () => {
       if (shouldListen) {
         shouldListen = false;
+        engine.stop();
         setListeningControls(false);
         setStatus("error", "Mikrofon megszakadt");
-        supportText.textContent =
+        ui.supportText.textContent =
           "Az audio input megszűnt. Ellenőrizd az eszközt és indítsd újra.";
       }
 
@@ -490,12 +579,8 @@ function stopMicrophoneDiagnostics({ keepDeviceInfo = true } = {}) {
   meterBuffer = null;
   smoothedMeterLevel = 0;
 
-  if (microphoneStream) {
-    for (const track of microphoneStream.getTracks()) {
-      track.stop();
-    }
-    microphoneStream = null;
-  }
+  microphoneStream?.getTracks().forEach((track) => track.stop());
+  microphoneStream = null;
 
   if (audioContext) {
     audioContext.close().catch(() => {});
@@ -503,82 +588,17 @@ function stopMicrophoneDiagnostics({ keepDeviceInfo = true } = {}) {
   }
 
   renderMeter(0, -Infinity);
-  signalText.textContent = "Nincs mérés";
+  ui.signalText.textContent = "Nincs mérés";
 
   if (!keepDeviceInfo) {
-    deviceName.textContent = "Még nincs megnyitva";
-    deviceDetails.textContent =
+    ui.deviceName.textContent = "Még nincs megnyitva";
+    ui.deviceDetails.textContent =
       "Az eszköz neve mikrofonengedély után jelenik meg.";
   }
 }
 
-function clearOutput() {
-  finalTranscript = "";
-  renderTranscripts();
-
-  commandValue.textContent = "—";
-  commandSource.textContent = "Még nincs találat.";
-
-  letterValue.textContent = "—";
-  letterSource.textContent = "Mondd például: „K mint Károly”.";
-}
-
-function handleMicrophoneFailure(error) {
-  shouldListen = false;
-  stopMicrophoneDiagnostics({ keepDeviceInfo: false });
-  setListeningControls(false);
-  setStatus("error", "Mikrofonhiba");
-
-  if (error?.name === "NotAllowedError") {
-    supportText.textContent =
-      "A mikrofon nincs engedélyezve. Engedélyezd a böngésző címsorából, majd próbáld újra.";
-    deviceName.textContent = "Hozzáférés megtagadva";
-    deviceDetails.textContent = "A böngésző nem kapott mikrofonengedélyt.";
-    return;
-  }
-
-  if (error?.name === "NotFoundError" || error?.name === "OverconstrainedError") {
-    supportText.textContent =
-      "A kiválasztott mikrofont nem sikerült megnyitni. Frissítsd az eszközlistát és válassz másik inputot.";
-    deviceName.textContent = "A mikrofon nem érhető el";
-    deviceDetails.textContent = "Lehet, hogy az eszközt kihúzták vagy másik eszközazonosítót kapott.";
-    return;
-  }
-
-  supportText.textContent =
-    "Nem sikerült megnyitni a mikrofont. Ellenőrizd az eszközt és a böngésző engedélyeit.";
-}
-
-function startSpeechRecognition() {
-  const audioTrack = microphoneStream?.getAudioTracks()?.[0];
-
-  if (audioTrack?.readyState === "live") {
-    try {
-      recognition.start(audioTrack);
-      return;
-    } catch (error) {
-      if (error?.name !== "TypeError") {
-        throw error;
-      }
-    }
-  }
-
-  recognition.start();
-}
-
-function handleRecognitionStartFailure(error) {
-  shouldListen = false;
-  setListeningControls(false);
-  setStatus("error", "Nem indult el");
-  supportText.textContent =
-    "A mikrofon működik, de a beszédfelismerés nem indítható el.";
-  stopMicrophoneDiagnostics({ keepDeviceInfo: true });
-
-  console.error("SpeechRecognition start failed:", error);
-}
-
 async function startListening() {
-  if (!recognition || shouldListen) {
+  if (shouldListen || !engine.isSupported()) {
     return;
   }
 
@@ -588,219 +608,274 @@ async function startListening() {
 
   try {
     await startMicrophoneDiagnostics();
+
+    const audioTrack = microphoneStream?.getAudioTracks()?.[0] ?? null;
+    engine.start(audioTrack);
   } catch (error) {
-    handleMicrophoneFailure(error);
-    return;
-  }
+    shouldListen = false;
+    stopMicrophoneDiagnostics({ keepDeviceInfo: false });
+    setListeningControls(false);
+    setStatus("error", "Mikrofonhiba");
 
-  if (!shouldListen) {
-    stopMicrophoneDiagnostics({ keepDeviceInfo: true });
-    return;
-  }
-
-  setStatus("starting", "Felismerés indítása…");
-
-  try {
-    startSpeechRecognition();
-  } catch (error) {
-    handleRecognitionStartFailure(error);
+    if (error?.name === "NotAllowedError") {
+      ui.supportText.textContent =
+        "A mikrofon nincs engedélyezve. Engedélyezd a böngészőben.";
+    } else if (
+      error?.name === "NotFoundError" ||
+      error?.name === "OverconstrainedError"
+    ) {
+      ui.supportText.textContent =
+        "A kiválasztott mikrofont nem sikerült megnyitni.";
+    } else {
+      ui.supportText.textContent =
+        `Nem sikerült elindítani a mikrofont: ${error?.message ?? error}`;
+    }
   }
 }
 
 function stopListening() {
   shouldListen = false;
-
-  if (recognition) {
-    try {
-      recognition.stop();
-    } catch {
-      // Recognition may already be stopped.
-    }
-  }
-
+  engine.stop();
   stopMicrophoneDiagnostics({ keepDeviceInfo: true });
   setListeningControls(false);
   setStatus("idle", "Készen áll");
   renderTranscripts();
 }
 
-function stopForRecognitionError(status, message) {
-  shouldListen = false;
-  setListeningControls(false);
-  setStatus("error", status);
-  supportText.textContent = message;
-  stopMicrophoneDiagnostics({ keepDeviceInfo: true });
+function formatExpected(expected) {
+  if (!expected) {
+    return "—";
+  }
+
+  if (expected.type === "COMMAND") {
+    return `COMMAND · ${expected.command}`;
+  }
+
+  if (expected.type === "LETTER") {
+    return `LETTER · ${expected.value}`;
+  }
+
+  return expected.type;
 }
 
-function configureRecognition() {
-  recognition = new SpeechRecognition();
-  recognition.lang = CONFIG.recognition.language;
-  recognition.continuous = CONFIG.recognition.continuous;
-  recognition.interimResults = CONFIG.recognition.interimResults;
-  recognition.maxAlternatives = CONFIG.recognition.maxAlternatives;
+function formatActualEvent(event) {
+  if (!event) {
+    return "NINCS PARSER TALÁLAT";
+  }
 
-  recognition.onstart = () => {
-    setListeningControls(true);
-    setStatus("listening", "Hallgatózom");
-    supportText.textContent =
-      "A kiválasztott mikrofon és a magyar beszédfelismerés is aktív (hu-HU).";
-    renderTranscripts();
-  };
-
-  recognition.onresult = (event) => {
-    let interim = "";
-    let changedText = "";
-
-    for (let index = event.resultIndex; index < event.results.length; index += 1) {
-      const text = event.results[index][0].transcript.trim();
-
-      if (!text) {
-        continue;
-      }
-
-      changedText += `${text} `;
-
-      if (event.results[index].isFinal) {
-        finalTranscript = `${finalTranscript} ${text}`.trim();
-      } else {
-        interim += `${text} `;
-      }
-    }
-
-    renderTranscripts(interim.trim());
-
-    const detected = detectCommand(changedText);
-    if (detected) {
-      renderDetectedCommand(detected, changedText);
-    }
-
-    const detectedLetter = detectLetter(changedText);
-    if (detectedLetter) {
-      renderDetectedLetter(detectedLetter, changedText);
-    }
-  };
-
-  recognition.onerror = (event) => {
-    if (event.error === "aborted" && !shouldListen) {
-      return;
-    }
-
-    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-      stopForRecognitionError(
-        "Felismerés tiltva",
-        "A böngésző nem engedte a beszédfelismerést. A mikrofonengedélyt és a böngésző beállításait is ellenőrizd.",
-      );
-      return;
-    }
-
-    if (event.error === "audio-capture") {
-      stopForRecognitionError(
-        "Audio hiba",
-        "A SpeechRecognition nem kapott audio bemenetet.",
-      );
-      return;
-    }
-
-    if (event.error === "network") {
-      stopForRecognitionError(
-        "Hálózati hiba",
-        "A mikrofon megnyílt, de a böngésző beszédfelismerő szolgáltatása nem érhető el.",
-      );
-      return;
-    }
-
-    if (event.error === "no-speech") {
-      setStatus("restarting", "Nem hallottam beszédet");
-      return;
-    }
-
-    setStatus("error", `Hiba: ${event.error}`);
-  };
-
-  recognition.onend = () => {
-    if (!shouldListen) {
-      setListeningControls(false);
-      setStatus("idle", "Készen áll");
-      renderTranscripts();
-      return;
-    }
-
-    setStatus("restarting", "Felismerés újraindítása…");
-
-    window.setTimeout(() => {
-      if (!shouldListen) {
-        return;
-      }
-
-      try {
-        startSpeechRecognition();
-      } catch (error) {
-        handleRecognitionStartFailure(error);
-      }
-    }, CONFIG.recognition.restartDelayMs);
-  };
+  return event.type === "COMMAND"
+    ? `COMMAND · ${event.command}`
+    : `LETTER · ${event.value}`;
 }
 
-async function handleRefreshMicrophones() {
-  refreshMicBtn.disabled = true;
-  supportText.textContent = "Mikrofonok lekérdezése…";
+function renderBenchmark() {
+  const summary = benchmark.summary();
+  const current = benchmark.currentCase;
+  const lastResult = benchmark.results.at(-1);
+
+  ui.benchmarkTranscriptScore.textContent =
+    `${summary.transcriptAccuracy}%`;
+  ui.benchmarkEventScore.textContent = `${summary.eventAccuracy}%`;
+  ui.benchmarkAttemptCount.textContent = String(summary.attemptedCases);
+  ui.benchmarkExportBtn.disabled = benchmark.results.length === 0;
+
+  if (benchmark.active && current) {
+    ui.benchmarkState.dataset.state = "running";
+    ui.benchmarkState.textContent = "Fut";
+    ui.benchmarkPrompt.textContent = current.prompt;
+    ui.benchmarkExpected.textContent =
+      `Elvárt: ${formatExpected(current.expected)}`;
+    ui.benchmarkProgress.textContent =
+      `${benchmark.index + 1} / ${benchmark.cases.length}`;
+    ui.benchmarkNextBtn.disabled = !benchmark.currentRecorded;
+    ui.benchmarkSkipBtn.disabled = benchmark.currentRecorded;
+    ui.benchmarkStartBtn.textContent = "Újrakezdés";
+  } else if (benchmark.completed) {
+    ui.benchmarkState.dataset.state = "success";
+    ui.benchmarkState.textContent = "Kész";
+    ui.benchmarkPrompt.textContent = "Benchmark befejezve";
+    ui.benchmarkExpected.textContent =
+      `Játékesemény pontosság: ${summary.eventAccuracy}%`;
+    ui.benchmarkProgress.textContent =
+      `${summary.completedCases} / ${summary.totalCases}`;
+    ui.benchmarkNextBtn.disabled = true;
+    ui.benchmarkSkipBtn.disabled = true;
+    ui.benchmarkStartBtn.textContent = "Új benchmark";
+  } else {
+    ui.benchmarkState.dataset.state = "idle";
+    ui.benchmarkState.textContent = "Nem fut";
+    ui.benchmarkPrompt.textContent = "—";
+    ui.benchmarkExpected.textContent = "Indítsd el a benchmarkot.";
+    ui.benchmarkProgress.textContent = `0 / ${benchmark.cases.length}`;
+    ui.benchmarkNextBtn.disabled = true;
+    ui.benchmarkSkipBtn.disabled = true;
+    ui.benchmarkStartBtn.textContent = "Benchmark indítása";
+  }
+
+  if (lastResult) {
+    ui.benchmarkActual.textContent =
+      lastResult.skipped
+        ? "Kihagyva"
+        : lastResult.primaryTranscript || "(üres)";
+
+    ui.benchmarkResult.textContent = lastResult.skipped
+      ? "KIHAGYVA"
+      : lastResult.eventCorrect
+        ? `✅ ${formatActualEvent(lastResult.event)}`
+        : `❌ ${formatActualEvent(lastResult.event)}`;
+  } else {
+    ui.benchmarkActual.textContent = "—";
+    ui.benchmarkResult.textContent = "—";
+  }
+
+  ui.benchmarkHistory.replaceChildren();
+
+  benchmark.results
+    .slice(-6)
+    .reverse()
+    .forEach((result) => {
+      const row = document.createElement("div");
+      const successful = !result.skipped && result.eventCorrect;
+      row.className =
+        `history-row ${successful ? "success" : "failure"}`;
+
+      const icon = document.createElement("span");
+      icon.textContent = result.skipped ? "↷" : successful ? "✓" : "×";
+
+      const text = document.createElement("span");
+      text.textContent =
+        `${result.prompt} → ${result.primaryTranscript || "—"}`;
+
+      const score = document.createElement("span");
+      score.className = "history-result";
+      score.textContent = result.skipped
+        ? "skip"
+        : formatActualEvent(result.event);
+
+      row.append(icon, text, score);
+      ui.benchmarkHistory.append(row);
+    });
+}
+
+async function startBenchmark() {
+  benchmark.start();
+  renderBenchmark();
+
+  if (!shouldListen) {
+    await startListening();
+  }
+}
+
+function nextBenchmarkCase() {
+  benchmark.next();
+  renderBenchmark();
+}
+
+function skipBenchmarkCase() {
+  benchmark.skip();
+  renderBenchmark();
+}
+
+function exportBenchmark() {
+  if (benchmark.results.length === 0) {
+    return;
+  }
+
+  const data = benchmark.exportData({
+    browser: navigator.userAgent,
+    language: CONFIG.recognition.language,
+    provider: engine.providerName,
+    microphone: activeDeviceMetadata,
+    maxAlternatives: CONFIG.recognition.maxAlternatives,
+  });
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download =
+    `voice-benchmark-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function refreshMicrophonesFromUi() {
+  ui.refreshMicBtn.disabled = true;
+  ui.supportText.textContent = "Mikrofonok lekérdezése…";
 
   try {
     await refreshMicrophoneList({
       requestPermission: true,
       preferBest: false,
     });
-
-    supportText.textContent =
+    ui.supportText.textContent =
       "Mikrofonlista frissítve. Válaszd ki a kívánt inputot.";
   } catch (error) {
-    handleMicrophoneFailure(error);
+    ui.supportText.textContent =
+      `A mikrofonlista nem kérdezhető le: ${error?.message ?? error}`;
   } finally {
     if (!shouldListen) {
-      refreshMicBtn.disabled = false;
+      ui.refreshMicBtn.disabled = false;
     }
   }
 }
 
-renderKeywordList();
-renderTranscripts();
-renderMeter(0, -Infinity);
-
-const hasMicrophoneApi = Boolean(
-  navigator.mediaDevices?.getUserMedia &&
-  navigator.mediaDevices?.enumerateDevices,
-);
-
-if (!hasMicrophoneApi) {
-  startBtn.disabled = true;
-  stopBtn.disabled = true;
-  refreshMicBtn.disabled = true;
-  setStatus("error", "Mikrofon API hiányzik");
-  supportText.textContent =
-    "A mikrofon API nem érhető el. Használj localhostot vagy HTTPS-t Chrome/Edge böngészőben.";
-} else if (!SpeechRecognition) {
-  startBtn.disabled = true;
-  stopBtn.disabled = true;
-  setStatus("error", "Nem támogatott");
-  supportText.textContent =
-    "A mikrofon API elérhető, de ez a böngésző nem biztosít SpeechRecognition API-t. Próbáld Chrome vagy Edge böngészővel.";
-} else {
-  supportText.textContent =
-    "Mikrofon és SpeechRecognition API elérhető. Választhatsz inputot, majd indíthatod a felismerést.";
-  configureRecognition();
-
-  refreshMicrophoneList({ requestPermission: false }).catch(() => {
-    microphoneSelect.disabled = true;
-  });
+function initializeDebugPanel() {
+  ui.debugProvider.textContent = engine.providerName;
+  ui.debugLanguage.textContent = CONFIG.recognition.language;
+  ui.debugBrowser.textContent = navigator.userAgent;
 }
 
-microphoneSelect.addEventListener("change", () => {
-  if (!microphoneSelect.value) {
+function initializeApp() {
+  renderKeywordList();
+  renderTranscripts();
+  renderMeter(0, -Infinity);
+  renderBenchmark();
+  initializeDebugPanel();
+
+  const hasMicrophoneApi = Boolean(
+    navigator.mediaDevices?.getUserMedia &&
+    navigator.mediaDevices?.enumerateDevices,
+  );
+
+  if (!hasMicrophoneApi) {
+    ui.startBtn.disabled = true;
+    ui.stopBtn.disabled = true;
+    ui.refreshMicBtn.disabled = true;
+    setStatus("error", "Mikrofon API hiányzik");
+    ui.supportText.textContent =
+      "Használj localhostot vagy HTTPS-t Chrome/Edge böngészőben.";
     return;
   }
 
-  saveMicrophoneId(microphoneSelect.value);
-  renderSelectedDevicePreview();
+  if (!engine.isSupported()) {
+    ui.startBtn.disabled = true;
+    ui.stopBtn.disabled = true;
+    setStatus("error", "SpeechRecognition nem támogatott");
+    ui.supportText.textContent =
+      "Próbáld Chrome vagy Edge böngészővel.";
+    return;
+  }
+
+  ui.supportText.textContent =
+    "Mikrofon és SpeechRecognition API elérhető.";
+  setListeningControls(false);
+
+  refreshMicrophoneList({ requestPermission: false }).catch(() => {
+    ui.microphoneSelect.disabled = true;
+  });
+}
+
+ui.microphoneSelect.addEventListener("change", () => {
+  if (ui.microphoneSelect.value) {
+    saveMicrophoneId(ui.microphoneSelect.value);
+    renderSelectedDevicePreview();
+  }
 });
 
 navigator.mediaDevices?.addEventListener?.("devicechange", () => {
@@ -809,13 +884,19 @@ navigator.mediaDevices?.addEventListener?.("devicechange", () => {
   }
 });
 
-startBtn.addEventListener("click", startListening);
-stopBtn.addEventListener("click", stopListening);
-clearBtn.addEventListener("click", clearOutput);
-refreshMicBtn.addEventListener("click", handleRefreshMicrophones);
+ui.startBtn.addEventListener("click", startListening);
+ui.stopBtn.addEventListener("click", stopListening);
+ui.clearBtn.addEventListener("click", clearOutput);
+ui.refreshMicBtn.addEventListener("click", refreshMicrophonesFromUi);
+ui.benchmarkStartBtn.addEventListener("click", startBenchmark);
+ui.benchmarkNextBtn.addEventListener("click", nextBenchmarkCase);
+ui.benchmarkSkipBtn.addEventListener("click", skipBenchmarkCase);
+ui.benchmarkExportBtn.addEventListener("click", exportBenchmark);
 
 window.addEventListener("beforeunload", () => {
   shouldListen = false;
-  recognition?.abort();
+  engine.abort();
   stopMicrophoneDiagnostics({ keepDeviceInfo: true });
 });
+
+initializeApp();

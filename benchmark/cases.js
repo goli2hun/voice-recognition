@@ -1,0 +1,28 @@
+export const BENCHMARK_CASES = [
+  { id: "cmd-spin-1", prompt: "Pörgetek", expected: { type: "COMMAND", command: "SPIN" } },
+  { id: "cmd-spin-2", prompt: "Szeretnék pörgetni", expected: { type: "COMMAND", command: "SPIN" } },
+  { id: "cmd-spin-3", prompt: "Pörgess", expected: { type: "COMMAND", command: "SPIN" } },
+  { id: "cmd-solve-1", prompt: "Megfejtem", expected: { type: "COMMAND", command: "SOLVE" } },
+  { id: "cmd-solve-2", prompt: "Szeretném megfejteni", expected: { type: "COMMAND", command: "SOLVE" } },
+  { id: "cmd-vowel-1", prompt: "Kérek egy magánhangzót", expected: { type: "COMMAND", command: "VOWEL" } },
+  { id: "letter-k", prompt: "K mint Károly", expected: { type: "LETTER", value: "K" } },
+  { id: "letter-b", prompt: "B mint Béla", expected: { type: "LETTER", value: "B" } },
+  { id: "letter-t", prompt: "T mint Tamás", expected: { type: "LETTER", value: "T" } },
+  { id: "letter-s", prompt: "S mint Sándor", expected: { type: "LETTER", value: "S" } },
+  { id: "letter-z", prompt: "Z mint Zoltán", expected: { type: "LETTER", value: "Z" } },
+  { id: "letter-a", prompt: "A mint Aladár", expected: { type: "LETTER", value: "A" } },
+  { id: "letter-aa", prompt: "Á mint Ádám", expected: { type: "LETTER", value: "Á" } },
+  { id: "letter-e", prompt: "E mint Elemér", expected: { type: "LETTER", value: "E" } },
+  { id: "letter-ee", prompt: "É mint Éva", expected: { type: "LETTER", value: "É" } },
+  { id: "letter-o", prompt: "O mint Olga", expected: { type: "LETTER", value: "O" } },
+  { id: "letter-oo", prompt: "Ó mint Óbuda", expected: { type: "LETTER", value: "Ó" } },
+  { id: "letter-oe", prompt: "Ö mint Ödön", expected: { type: "LETTER", value: "Ö" } },
+  { id: "letter-oee", prompt: "Ő mint Őrs", expected: { type: "LETTER", value: "Ő" } },
+  { id: "letter-u", prompt: "U mint Ubul", expected: { type: "LETTER", value: "U" } },
+  { id: "letter-uu", prompt: "Ú mint Újpest", expected: { type: "LETTER", value: "Ú" } },
+  { id: "letter-ue", prompt: "Ü mint Üllő", expected: { type: "LETTER", value: "Ü" } },
+  { id: "letter-uee", prompt: "Ű mint Űr", expected: { type: "LETTER", value: "Ű" } },
+  { id: "letter-p", prompt: "P mint Péter", expected: { type: "LETTER", value: "P" } },
+];
+
+export default BENCHMARK_CASES;
